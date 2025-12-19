@@ -229,17 +229,19 @@ export class BillingSubscriptionService {
       schedule: updatedSchedule,
       currentPhase: updatedcurrentPhase,
       nextPhase: updatednextPhase,
-    } = (await this.maybeUpgradeNowIfHigherTier(
-      billingSubscription,
-      targetCap,
-      currentCap,
-      mappedCurrentMeteredId,
-    )) ?? {
-      subscription,
-      schedule,
-      currentPhase,
-      nextPhase,
-    };
+    } = isUpgrade
+      ? await this.upgradeToHigherTier(
+          billingSubscription,
+          targetCap,
+          currentCap,
+          mappedCurrentMeteredId,
+        )
+      : {
+          subscription,
+          schedule,
+          currentPhase,
+          nextPhase,
+        };
 
     const { currentMutated, nextMutated } = await this.buildPhaseUpdates(
       updatedcurrentPhase,
@@ -251,22 +253,39 @@ export class BillingSubscriptionService {
       isUpgrade,
     );
 
-    const nextForUpdate = await this.dedupeNextPhase(
+    const nextPhaseUpdateParam = await this.dedupeNextPhase(
       currentMutated,
       nextMutated,
     );
 
-    const currentPhaseUpdateParamForUpdate = currentMutated
+    const currentPhaseUpdateParam = currentMutated
       ? { ...currentMutated, end_date: updatedSubscription.current_period_end }
       : undefined;
 
-    await this.stripeSubscriptionScheduleService.replaceEditablePhases(
-      updatedSchedule.id,
-      {
-        currentPhaseUpdateParam: currentPhaseUpdateParamForUpdate,
-        nextPhase: nextForUpdate,
-      },
-    );
+    if (
+      !isDefined(currentPhaseUpdateParam) &&
+      isDefined(nextPhaseUpdateParam)
+    ) {
+      throw new BillingException(
+        'Invalid schedule update: next phase cannot be defined without current phase',
+        BillingExceptionCode.BILLING_SUBSCRIPTION_INVALID,
+      );
+    }
+
+    if (
+      !isDefined(currentPhaseUpdateParam) ||
+      !isDefined(nextPhaseUpdateParam)
+    ) {
+      await this.stripeSubscriptionScheduleService.release(updatedSchedule.id);
+    } else {
+      await this.stripeSubscriptionScheduleService.replaceEditablePhases(
+        updatedSchedule.id,
+        {
+          currentPhaseUpdateParam,
+          nextPhaseUpdateParam,
+        },
+      );
+    }
 
     const refreshed =
       await this.stripeSubscriptionScheduleService.getSubscriptionWithSchedule(
@@ -673,32 +692,33 @@ export class BillingSubscriptionService {
     };
   }
 
-  private async maybeUpgradeNowIfHigherTier(
+  private async upgradeToHigherTier(
     billingSubscription: BillingSubscriptionEntity,
     targetCap: number,
     currentCap: number,
     mappedCurrentMeteredId: string,
-  ): Promise<
-    | {
-        subscription: SubscriptionWithSchedule;
-        schedule: Stripe.SubscriptionSchedule;
-        currentPhase: Stripe.SubscriptionSchedule.Phase | undefined;
-        nextPhase: Stripe.SubscriptionSchedule.Phase | undefined;
-      }
-    | undefined
-  > {
-    if (targetCap > currentCap) {
-      await this.replaceCurrentMeteredItem(
-        billingSubscription,
-        mappedCurrentMeteredId,
+  ): Promise<{
+    subscription: SubscriptionWithSchedule;
+    schedule: Stripe.SubscriptionSchedule;
+    currentPhase: Stripe.SubscriptionSchedule.Phase;
+    nextPhase: Stripe.SubscriptionSchedule.Phase | undefined;
+  }> {
+    if (targetCap <= currentCap) {
+      throw new BillingException(
+        'Target cap is not higher than current cap. Cannot upgrade to higher tier.',
+        BillingExceptionCode.BILLING_SUBSCRIPTION_INVALID,
       );
-      const { subscription, schedule, currentPhase, nextPhase } =
-        await this.loadSchedule(billingSubscription.stripeSubscriptionId);
-
-      return { subscription, schedule, currentPhase, nextPhase };
     }
 
-    return undefined;
+    await this.replaceCurrentMeteredItem(
+      billingSubscription,
+      mappedCurrentMeteredId,
+    );
+
+    const { subscription, schedule, currentPhase, nextPhase } =
+      await this.loadSchedule(billingSubscription.stripeSubscriptionId);
+
+    return { subscription, schedule, currentPhase, nextPhase };
   }
 
   private async buildPhaseUpdates(
@@ -764,7 +784,7 @@ export class BillingSubscriptionService {
 
     if (!baseItems) {
       throw new BillingException(
-        'Cannot build next phase: no items found on current or next snapshot',
+        'Cannot build next phase: no items found on current or next phase update param',
         BillingExceptionCode.BILLING_SUBSCRIPTION_ITEM_NOT_FOUND,
       );
     }
@@ -912,7 +932,7 @@ export class BillingSubscriptionService {
 
     // Case A: Already on target interval
     if (currentInterval === targetInterval) {
-      const hasNext = !!nextPhase;
+      const hasNext = isDefined(nextPhase);
 
       if (!hasNext) return;
 
@@ -934,14 +954,7 @@ export class BillingSubscriptionService {
           billingSubscription.stripeSubscriptionId,
           {
             current: {
-              licensedPriceId: (
-                await this.resolvePrices({
-                  interval: currentInterval,
-                  planKey,
-                  meteredPriceId: currentMeteredPriceId,
-                  updateType: 'interval',
-                })
-              ).targetLicensedPrice.stripePriceId,
+              licensedPriceId: currentDetails.licensedPrice.stripePriceId,
               meteredPriceId: currentMeteredPriceId,
               seats,
             },
@@ -988,7 +1001,7 @@ export class BillingSubscriptionService {
       const { currentPhase, nextPhase, subscription, schedule } =
         await this.loadSchedule(billingSubscription.stripeSubscriptionId);
 
-      if (nextPhase && currentPhase) {
+      if (isDefined(nextPhase) && isDefined(currentPhase)) {
         const reloadedNextDetails =
           await this.billingSubscriptionPhaseService.getDetailsFromPhase(
             nextPhase as BillingSubscriptionSchedulePhaseDTO,
@@ -1001,14 +1014,14 @@ export class BillingSubscriptionService {
           updateType: 'interval',
         });
 
-        const currentSnap =
+        const currentPhaseUpdateParam =
           this.billingSubscriptionPhaseService.toUpdateParam(currentPhase);
 
-        const nextPhaseForYear =
+        const nextPhaseUpdateParam =
           await this.billingSubscriptionPhaseService.buildPhaseUpdateParam(
             {
               start_date: subscription.current_period_end,
-              items: currentSnap.items,
+              items: currentPhaseUpdateParam.items,
               proration_behavior: 'none',
             } as Stripe.SubscriptionScheduleUpdateParams.Phase,
             mappedNext.targetLicensedPrice.stripePriceId,
@@ -1019,8 +1032,8 @@ export class BillingSubscriptionService {
         return await this.updateSchedulePhases({
           subscription,
           scheduleId: schedule.id,
-          currentPhaseInput: currentSnap,
-          nextPhaseInput: nextPhaseForYear,
+          currentPhaseUpdateParam,
+          nextPhaseUpdateParam,
         });
       }
 
@@ -1032,7 +1045,7 @@ export class BillingSubscriptionService {
       currentInterval === SubscriptionInterval.Year &&
       targetInterval === SubscriptionInterval.Month
     ) {
-      const hasNext = !!nextPhase;
+      const hasNext = isDefined(nextPhase);
 
       const nextDetails = hasNext
         ? await this.billingSubscriptionPhaseService.getDetailsFromPhase(
@@ -1044,13 +1057,6 @@ export class BillingSubscriptionService {
       const nextMeteredPriceId =
         nextDetails?.meteredPrice.stripePriceId ?? currentMeteredPriceId;
 
-      const currentPrices = await this.resolvePrices({
-        interval: SubscriptionInterval.Month,
-        planKey,
-        meteredPriceId: currentMeteredPriceId,
-        updateType: 'interval',
-      });
-
       const nextPrices = await this.resolvePrices({
         interval: SubscriptionInterval.Month,
         planKey: nextPlanKey,
@@ -1060,7 +1066,7 @@ export class BillingSubscriptionService {
 
       return this.downgradeDeferred(billingSubscription.stripeSubscriptionId, {
         current: {
-          licensedPriceId: currentPrices.targetLicensedPrice.stripePriceId,
+          licensedPriceId: currentDetails.licensedPrice.stripePriceId,
           meteredPriceId: currentMeteredPriceId,
           seats,
         },
@@ -1186,7 +1192,7 @@ export class BillingSubscriptionService {
         const currentPhaseUpdateParam =
           this.billingSubscriptionPhaseService.toUpdateParam(currentPhase);
 
-        const updatedNextPhase =
+        const nextPhaseUpdateParam =
           await this.billingSubscriptionPhaseService.buildPhaseUpdateParam(
             {
               start_date: subscription.current_period_end,
@@ -1201,8 +1207,8 @@ export class BillingSubscriptionService {
         return await this.updateSchedulePhases({
           subscription,
           scheduleId: schedule.id,
-          currentPhaseInput: currentPhaseUpdateParam,
-          nextPhaseInput: updatedNextPhase,
+          currentPhaseUpdateParam,
+          nextPhaseUpdateParam,
         });
       }
 
@@ -1305,35 +1311,39 @@ export class BillingSubscriptionService {
   private async updateSchedulePhases(params: {
     scheduleId: string;
     subscription: SubscriptionWithSchedule | Stripe.Subscription;
-    currentPhaseInput: Stripe.SubscriptionScheduleUpdateParams.Phase;
-    nextPhaseInput?: Stripe.SubscriptionScheduleUpdateParams.Phase;
+    currentPhaseUpdateParam: Stripe.SubscriptionScheduleUpdateParams.Phase;
+    nextPhaseUpdateParam?: Stripe.SubscriptionScheduleUpdateParams.Phase;
   }): Promise<void> {
     const { scheduleId, subscription } = params;
-    let { currentPhaseInput, nextPhaseInput } = params;
+    let { currentPhaseUpdateParam, nextPhaseUpdateParam } = params;
 
     const currentPhaseToPersist: Stripe.SubscriptionScheduleUpdateParams.Phase =
       {
-        ...currentPhaseInput,
+        ...currentPhaseUpdateParam,
         end_date: subscription.current_period_end,
       };
 
     if (
-      isDefined(nextPhaseInput) &&
+      isDefined(nextPhaseUpdateParam) &&
       (await this.billingSubscriptionPhaseService.isSamePhaseSignature(
-        currentPhaseInput,
-        nextPhaseInput,
+        currentPhaseUpdateParam,
+        nextPhaseUpdateParam,
       ))
     ) {
-      nextPhaseInput = undefined;
+      nextPhaseUpdateParam = undefined;
     }
 
-    await this.stripeSubscriptionScheduleService.replaceEditablePhases(
-      scheduleId,
-      {
-        currentPhaseUpdateParam: currentPhaseToPersist,
-        nextPhase: nextPhaseInput,
-      },
-    );
+    if (!isDefined(nextPhaseUpdateParam)) {
+      await this.stripeSubscriptionScheduleService.release(scheduleId);
+    } else {
+      await this.stripeSubscriptionScheduleService.replaceEditablePhases(
+        scheduleId,
+        {
+          currentPhaseUpdateParam: currentPhaseToPersist,
+          nextPhaseUpdateParam,
+        },
+      );
+    }
     const refreshed =
       await this.stripeSubscriptionScheduleService.getSubscriptionWithSchedule(
         subscription.id,
@@ -1457,7 +1467,7 @@ export class BillingSubscriptionService {
       this.billingSubscriptionPhaseService.toUpdateParam(
         currentPhase as Stripe.SubscriptionSchedule.Phase,
       );
-    const next =
+    const nextPhaseUpdateParam =
       await this.billingSubscriptionPhaseService.buildPhaseUpdateParam(
         {
           start_date: subscription.current_period_end,
@@ -1472,8 +1482,8 @@ export class BillingSubscriptionService {
     await this.updateSchedulePhases({
       scheduleId: schedule.id,
       subscription,
-      currentPhaseInput: currentPhaseUpdateParam,
-      nextPhaseInput: next,
+      currentPhaseUpdateParam,
+      nextPhaseUpdateParam,
     });
   }
 

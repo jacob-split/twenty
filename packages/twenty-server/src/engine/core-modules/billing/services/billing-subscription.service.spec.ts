@@ -354,7 +354,7 @@ describe('BillingSubscriptionService', () => {
   };
 
   const arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences = (
-    snapshots: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [
+    phaseUpdateParams: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [
       {} as Stripe.SubscriptionScheduleUpdateParams.Phase,
     ],
   ) => {
@@ -363,7 +363,7 @@ describe('BillingSubscriptionService', () => {
       'buildPhaseUpdateParam',
     );
 
-    snapshots.forEach((phase) => {
+    phaseUpdateParams.forEach((phase) => {
       spy.mockResolvedValueOnce(phase);
     });
 
@@ -644,7 +644,7 @@ describe('BillingSubscriptionService', () => {
           provide: BillingSubscriptionPhaseService,
           useValue: {
             getDetailsFromPhase: jest.fn(),
-            toSnapshot: jest.fn(),
+            toUpdateParam: jest.fn(),
             buildPhaseUpdateParam: jest.fn(),
             getLicensedPriceIdFromSnapshot: jest.fn(),
             isSamePhaseSignature: jest.fn(),
