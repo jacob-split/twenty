@@ -750,7 +750,7 @@ export class BillingSubscriptionService {
     nextMutated: Stripe.SubscriptionScheduleUpdateParams.Phase | undefined;
   }> {
     const currentPhaseUpdateParam = isDefined(currentPhase)
-      ? this.billingSubscriptionPhaseService.toUpdateParam(currentPhase)
+      ? this.billingSubscriptionPhaseService.toPhaseUpdateParam(currentPhase)
       : undefined;
     const hasNext = isDefined(nextPhase);
     const nextPhaseDetails = hasNext
@@ -764,7 +764,7 @@ export class BillingSubscriptionService {
         )
       : currentPhaseDetails.licensedPrice.stripePriceId;
     const nextPhaseUpdateParam = hasNext
-      ? this.billingSubscriptionPhaseService.toUpdateParam(nextPhase)
+      ? this.billingSubscriptionPhaseService.toPhaseUpdateParam(nextPhase)
       : undefined;
     const nextLicensedId = nextPhaseUpdateParam
       ? this.billingSubscriptionPhaseService.getLicensedPriceIdFromSnapshot(
@@ -1021,7 +1021,7 @@ export class BillingSubscriptionService {
         });
 
         const currentPhaseUpdateParam =
-          this.billingSubscriptionPhaseService.toUpdateParam(currentPhase);
+          this.billingSubscriptionPhaseService.toPhaseUpdateParam(currentPhase);
 
         const nextPhaseUpdateParam =
           await this.billingSubscriptionPhaseService.buildPhaseUpdateParam(
@@ -1190,7 +1190,7 @@ export class BillingSubscriptionService {
         });
 
         const currentPhaseUpdateParam =
-          this.billingSubscriptionPhaseService.toUpdateParam(currentPhase);
+          this.billingSubscriptionPhaseService.toPhaseUpdateParam(currentPhase);
 
         const nextPhaseUpdateParam =
           await this.billingSubscriptionPhaseService.buildPhaseUpdateParam(
@@ -1464,7 +1464,7 @@ export class BillingSubscriptionService {
     const { currentPhase } =
       this.stripeSubscriptionScheduleService.getCurrentAndNextPhases(schedule);
     const currentPhaseUpdateParam =
-      this.billingSubscriptionPhaseService.toUpdateParam(
+      this.billingSubscriptionPhaseService.toPhaseUpdateParam(
         currentPhase as Stripe.SubscriptionSchedule.Phase,
       );
     const nextPhaseUpdateParam =

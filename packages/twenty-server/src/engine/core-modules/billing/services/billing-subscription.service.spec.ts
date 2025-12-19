@@ -615,7 +615,7 @@ describe('BillingSubscriptionService', () => {
     quantity = 7,
   ) =>
     jest
-      .spyOn(billingSubscriptionPhaseService, 'toUpdateParam')
+      .spyOn(billingSubscriptionPhaseService, 'toPhaseUpdateParam')
       .mockReturnValue({
         end_date: Date.now() + 1000,
         items: [
@@ -769,7 +769,7 @@ describe('BillingSubscriptionService', () => {
           provide: BillingSubscriptionPhaseService,
           useValue: {
             getDetailsFromPhase: jest.fn(),
-            toUpdateParam: jest.fn(),
+            toPhaseUpdateParam: jest.fn(),
             buildPhaseUpdateParam: jest.fn(),
             getLicensedPriceIdFromSnapshot: jest.fn(),
             isSamePhaseSignature: jest.fn(),

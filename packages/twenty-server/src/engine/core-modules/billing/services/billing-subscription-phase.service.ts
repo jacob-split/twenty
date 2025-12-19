@@ -77,7 +77,7 @@ export class BillingSubscriptionPhaseService {
     };
   }
 
-  toUpdateParam(
+  toPhaseUpdateParam(
     phase: Stripe.SubscriptionSchedule.Phase,
   ): Stripe.SubscriptionScheduleUpdateParams.Phase {
     return {
