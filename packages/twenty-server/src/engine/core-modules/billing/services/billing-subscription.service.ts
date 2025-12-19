@@ -28,8 +28,8 @@ import { BillingSubscriptionSchedulePhaseDTO } from 'src/engine/core-modules/bil
 import { BillingCustomerEntity } from 'src/engine/core-modules/billing/entities/billing-customer.entity';
 import { BillingEntitlementEntity } from 'src/engine/core-modules/billing/entities/billing-entitlement.entity';
 import { BillingPriceEntity } from 'src/engine/core-modules/billing/entities/billing-price.entity';
-import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
 import { BillingSubscriptionItemEntity } from 'src/engine/core-modules/billing/entities/billing-subscription-item.entity';
+import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
 import { type BillingEntitlementKey } from 'src/engine/core-modules/billing/enums/billing-entitlement-key.enum';
 import { BillingPlanKey } from 'src/engine/core-modules/billing/enums/billing-plan-key.enum';
 import { BillingProductKey } from 'src/engine/core-modules/billing/enums/billing-product-key.enum';
@@ -215,8 +215,8 @@ export class BillingSubscriptionService {
       billingSubscription,
       subscription,
       schedule,
-      currentEditable,
-      nextEditable,
+      currentPhase,
+      nextPhase,
       currentPhaseDetails,
       currentCap,
       targetCap,
@@ -227,8 +227,8 @@ export class BillingSubscriptionService {
     const {
       subscription: updatedSubscription,
       schedule: updatedSchedule,
-      currentEditable: updatedCurrentEditable,
-      nextEditable: updatedNextEditable,
+      currentPhase: updatedcurrentPhase,
+      nextPhase: updatednextPhase,
     } = (await this.maybeUpgradeNowIfHigherTier(
       billingSubscription,
       targetCap,
@@ -237,13 +237,13 @@ export class BillingSubscriptionService {
     )) ?? {
       subscription,
       schedule,
-      currentEditable,
-      nextEditable,
+      currentPhase,
+      nextPhase,
     };
 
-    const { currentMutated, nextMutated } = await this.buildSnapshots(
-      updatedCurrentEditable,
-      updatedNextEditable,
+    const { currentMutated, nextMutated } = await this.buildPhaseUpdates(
+      updatedcurrentPhase,
+      updatednextPhase,
       currentPhaseDetails,
       mappedCurrentMeteredId,
       mappedNextMeteredId,
@@ -256,14 +256,14 @@ export class BillingSubscriptionService {
       nextMutated,
     );
 
-    const currentPhaseSnapshotForUpdate = currentMutated
+    const currentPhaseUpdateParamForUpdate = currentMutated
       ? { ...currentMutated, end_date: updatedSubscription.current_period_end }
       : undefined;
 
     await this.stripeSubscriptionScheduleService.replaceEditablePhases(
       updatedSchedule.id,
       {
-        currentPhaseSnapshot: currentPhaseSnapshotForUpdate,
+        currentPhaseUpdateParam: currentPhaseUpdateParamForUpdate,
         nextPhase: nextForUpdate,
       },
     );
@@ -283,13 +283,13 @@ export class BillingSubscriptionService {
     const billingSubscription = await this.getCurrentBillingSubscriptionOrThrow(
       { workspaceId: workspace.id },
     );
-    const { currentEditable } = await this.loadScheduleEditable(
+    const { currentPhase } = await this.loadSchedule(
       billingSubscription.stripeSubscriptionId,
     );
 
     const currentPhaseDetails =
       await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-        currentEditable as BillingSubscriptionSchedulePhaseDTO,
+        currentPhase as BillingSubscriptionSchedulePhaseDTO,
       );
 
     await this.changeMeteredPrice(
@@ -536,7 +536,7 @@ export class BillingSubscriptionService {
     return currentBillingSubscription;
   }
 
-  private async loadScheduleEditable(stripeSubscriptionId: string) {
+  private async loadSchedule(stripeSubscriptionId: string) {
     const subscription =
       await this.stripeSubscriptionScheduleService.getSubscriptionWithSchedule(
         stripeSubscriptionId,
@@ -547,10 +547,10 @@ export class BillingSubscriptionService {
         subscription,
       );
 
-    const { currentEditable, nextEditable } =
-      this.stripeSubscriptionScheduleService.getEditablePhases(schedule);
+    const { currentPhase, nextPhase } =
+      this.stripeSubscriptionScheduleService.getCurrentAndNextPhases(schedule);
 
-    return { subscription, schedule, currentEditable, nextEditable };
+    return { subscription, schedule, currentPhase, nextPhase };
   }
 
   private async mapTargetMeteredForPhase(
@@ -605,8 +605,8 @@ export class BillingSubscriptionService {
     billingSubscription: BillingSubscriptionEntity;
     subscription: SubscriptionWithSchedule;
     schedule: Stripe.SubscriptionSchedule;
-    currentEditable: Stripe.SubscriptionSchedule.Phase | undefined;
-    nextEditable: Stripe.SubscriptionSchedule.Phase | undefined;
+    currentPhase: Stripe.SubscriptionSchedule.Phase | undefined;
+    nextPhase: Stripe.SubscriptionSchedule.Phase | undefined;
     currentPhaseDetails: Awaited<
       ReturnType<BillingSubscriptionPhaseService['getDetailsFromPhase']>
     >;
@@ -623,10 +623,10 @@ export class BillingSubscriptionService {
     const billingSubscription = await this.getCurrentBillingSubscriptionOrThrow(
       { workspaceId: workspace.id },
     );
-    let { subscription, schedule, currentEditable, nextEditable } =
-      await this.loadScheduleEditable(billingSubscription.stripeSubscriptionId);
+    let { subscription, schedule, currentPhase, nextPhase } =
+      await this.loadSchedule(billingSubscription.stripeSubscriptionId);
 
-    if (!isDefined(currentEditable)) {
+    if (!isDefined(currentPhase)) {
       throw new BillingException(
         'No editable phase found for current subscription',
         BillingExceptionCode.BILLING_SUBSCRIPTION_PHASE_NOT_FOUND,
@@ -634,12 +634,12 @@ export class BillingSubscriptionService {
     }
     const currentPhaseDetails =
       await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-        currentEditable as BillingSubscriptionSchedulePhaseDTO,
+        currentPhase as BillingSubscriptionSchedulePhaseDTO,
       );
-    const hasNextInitially = !!nextEditable;
+    const hasNextInitially = !!nextPhase;
     const nextPhaseDetailsInitial = hasNextInitially
       ? await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-          nextEditable as BillingSubscriptionSchedulePhaseDTO,
+          nextPhase as BillingSubscriptionSchedulePhaseDTO,
         )
       : undefined;
     const currentCap = (currentPhaseDetails.meteredPrice as BillingMeterPrice)
@@ -662,8 +662,8 @@ export class BillingSubscriptionService {
       billingSubscription,
       subscription,
       schedule,
-      currentEditable,
-      nextEditable,
+      currentPhase,
+      nextPhase,
       currentPhaseDetails,
       nextPhaseDetailsInitial,
       currentCap,
@@ -682,8 +682,8 @@ export class BillingSubscriptionService {
     | {
         subscription: SubscriptionWithSchedule;
         schedule: Stripe.SubscriptionSchedule;
-        currentEditable: Stripe.SubscriptionSchedule.Phase | undefined;
-        nextEditable: Stripe.SubscriptionSchedule.Phase | undefined;
+        currentPhase: Stripe.SubscriptionSchedule.Phase | undefined;
+        nextPhase: Stripe.SubscriptionSchedule.Phase | undefined;
       }
     | undefined
   > {
@@ -692,20 +692,18 @@ export class BillingSubscriptionService {
         billingSubscription,
         mappedCurrentMeteredId,
       );
-      const { subscription, schedule, currentEditable, nextEditable } =
-        await this.loadScheduleEditable(
-          billingSubscription.stripeSubscriptionId,
-        );
+      const { subscription, schedule, currentPhase, nextPhase } =
+        await this.loadSchedule(billingSubscription.stripeSubscriptionId);
 
-      return { subscription, schedule, currentEditable, nextEditable };
+      return { subscription, schedule, currentPhase, nextPhase };
     }
 
     return undefined;
   }
 
-  private async buildSnapshots(
-    currentEditable: Stripe.SubscriptionSchedule.Phase | undefined,
-    nextEditable: Stripe.SubscriptionSchedule.Phase | undefined,
+  private async buildPhaseUpdates(
+    currentPhase: Stripe.SubscriptionSchedule.Phase | undefined,
+    nextPhase: Stripe.SubscriptionSchedule.Phase | undefined,
     currentPhaseDetails: Awaited<
       ReturnType<BillingSubscriptionPhaseService['getDetailsFromPhase']>
     >,
@@ -714,48 +712,53 @@ export class BillingSubscriptionService {
     subscriptionCurrentPeriodEnd: number,
     mutateCurrentNow: boolean,
   ): Promise<{
-    currentSnap: Stripe.SubscriptionScheduleUpdateParams.Phase | undefined;
-    nextSnap: Stripe.SubscriptionScheduleUpdateParams.Phase | undefined;
+    currentPhaseUpdateParam:
+      | Stripe.SubscriptionScheduleUpdateParams.Phase
+      | undefined;
+    nextPhaseUpdateParam:
+      | Stripe.SubscriptionScheduleUpdateParams.Phase
+      | undefined;
     currentLicensedId: string;
     nextLicensedId: string;
     currentMutated: Stripe.SubscriptionScheduleUpdateParams.Phase | undefined;
     nextMutated: Stripe.SubscriptionScheduleUpdateParams.Phase | undefined;
   }> {
-    const isCurrentEditableDefined = isDefined(currentEditable);
-    const currentSnap = isCurrentEditableDefined
-      ? this.billingSubscriptionPhaseService.toSnapshot(currentEditable)
+    const iscurrentPhaseDefined = isDefined(currentPhase);
+    const currentPhaseUpdateParam = iscurrentPhaseDefined
+      ? this.billingSubscriptionPhaseService.toUpdateParam(currentPhase)
       : undefined;
-    const hasNext = !!nextEditable;
+    const hasNext = !!nextPhase;
     const nextPhaseDetails = hasNext
       ? await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-          nextEditable as BillingSubscriptionSchedulePhaseDTO,
+          nextPhase as BillingSubscriptionSchedulePhaseDTO,
         )
       : undefined;
-    const currentLicensedId = currentSnap
+    const currentLicensedId = currentPhaseUpdateParam
       ? this.billingSubscriptionPhaseService.getLicensedPriceIdFromSnapshot(
-          currentSnap,
+          currentPhaseUpdateParam,
         )
       : currentPhaseDetails.licensedPrice.stripePriceId;
-    const nextSnap = hasNext
-      ? this.billingSubscriptionPhaseService.toSnapshot(nextEditable)
+    const nextPhaseUpdateParam = hasNext
+      ? this.billingSubscriptionPhaseService.toUpdateParam(nextPhase)
       : undefined;
-    const nextLicensedId = nextSnap
+    const nextLicensedId = nextPhaseUpdateParam
       ? this.billingSubscriptionPhaseService.getLicensedPriceIdFromSnapshot(
-          nextSnap,
+          nextPhaseUpdateParam,
         )
       : currentLicensedId;
-    const currentMutated = currentSnap
+    const currentMutated = currentPhaseUpdateParam
       ? mutateCurrentNow
-        ? await this.billingSubscriptionPhaseService.buildSnapshot(
-            currentSnap,
+        ? await this.billingSubscriptionPhaseService.buildPhaseUpdateParam(
+            currentPhaseUpdateParam,
             currentLicensedId,
             currentPhaseDetails.quantity,
             mappedCurrentMeteredId,
           )
-        : currentSnap
+        : currentPhaseUpdateParam
       : undefined;
 
-    const baseItems = (currentSnap?.items ?? nextSnap?.items) as
+    const baseItems = (currentPhaseUpdateParam?.items ??
+      nextPhaseUpdateParam?.items) as
       | Stripe.SubscriptionScheduleUpdateParams.Phase.Item[]
       | undefined;
 
@@ -772,7 +775,7 @@ export class BillingSubscriptionService {
       proration_behavior: 'none',
     };
     const nextMutated =
-      await this.billingSubscriptionPhaseService.buildSnapshot(
+      await this.billingSubscriptionPhaseService.buildPhaseUpdateParam(
         nextPhaseBase,
         nextLicensedId,
         nextPhaseDetails?.quantity ?? currentPhaseDetails.quantity,
@@ -780,8 +783,8 @@ export class BillingSubscriptionService {
       );
 
     return {
-      currentSnap,
-      nextSnap,
+      currentPhaseUpdateParam,
+      nextPhaseUpdateParam,
       currentLicensedId,
       nextLicensedId,
       currentMutated,
@@ -893,17 +896,14 @@ export class BillingSubscriptionService {
     billingSubscription: BillingSubscriptionEntity,
     targetInterval: SubscriptionInterval,
   ): Promise<void> {
-    const { currentEditable } = await this.loadScheduleEditable(
+    const { currentPhase, nextPhase } = await this.loadSchedule(
       billingSubscription.stripeSubscriptionId,
     );
 
     const currentDetails =
       await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-        currentEditable as BillingSubscriptionSchedulePhaseDTO,
+        currentPhase as BillingSubscriptionSchedulePhaseDTO,
       );
-    const { nextEditable } = await this.loadScheduleEditable(
-      billingSubscription.stripeSubscriptionId,
-    );
 
     const currentInterval = currentDetails.interval;
     const planKey = currentDetails.plan.planKey;
@@ -912,13 +912,13 @@ export class BillingSubscriptionService {
 
     // Case A: Already on target interval
     if (currentInterval === targetInterval) {
-      const hasNext = !!nextEditable;
+      const hasNext = !!nextPhase;
 
       if (!hasNext) return;
 
       const nextDetails =
         await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-          nextEditable as BillingSubscriptionSchedulePhaseDTO,
+          nextPhase as BillingSubscriptionSchedulePhaseDTO,
         );
 
       if (nextDetails.interval !== targetInterval) {
@@ -985,15 +985,13 @@ export class BillingSubscriptionService {
         },
       );
 
-      const { currentEditable, nextEditable, subscription, schedule } =
-        await this.loadScheduleEditable(
-          billingSubscription.stripeSubscriptionId,
-        );
+      const { currentPhase, nextPhase, subscription, schedule } =
+        await this.loadSchedule(billingSubscription.stripeSubscriptionId);
 
-      if (nextEditable && currentEditable) {
+      if (nextPhase && currentPhase) {
         const reloadedNextDetails =
           await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-            nextEditable as BillingSubscriptionSchedulePhaseDTO,
+            nextPhase as BillingSubscriptionSchedulePhaseDTO,
           );
 
         const mappedNext = await this.resolvePrices({
@@ -1004,10 +1002,10 @@ export class BillingSubscriptionService {
         });
 
         const currentSnap =
-          this.billingSubscriptionPhaseService.toSnapshot(currentEditable);
+          this.billingSubscriptionPhaseService.toUpdateParam(currentPhase);
 
         const nextPhaseForYear =
-          await this.billingSubscriptionPhaseService.buildSnapshot(
+          await this.billingSubscriptionPhaseService.buildPhaseUpdateParam(
             {
               start_date: subscription.current_period_end,
               items: currentSnap.items,
@@ -1018,11 +1016,11 @@ export class BillingSubscriptionService {
             mappedNext.targetMeteredPrice.stripePriceId,
           );
 
-        return await this.scheduleReplaceNext({
+        return await this.updateSchedulePhases({
           subscription,
           scheduleId: schedule.id,
-          currentPhaseSnapshot: currentSnap,
-          nextPhase: nextPhaseForYear,
+          currentPhaseInput: currentSnap,
+          nextPhaseInput: nextPhaseForYear,
         });
       }
 
@@ -1034,11 +1032,11 @@ export class BillingSubscriptionService {
       currentInterval === SubscriptionInterval.Year &&
       targetInterval === SubscriptionInterval.Month
     ) {
-      const hasNext = !!nextEditable;
+      const hasNext = !!nextPhase;
 
       const nextDetails = hasNext
         ? await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-            nextEditable as BillingSubscriptionSchedulePhaseDTO,
+            nextPhase as BillingSubscriptionSchedulePhaseDTO,
           )
         : undefined;
 
@@ -1084,12 +1082,12 @@ export class BillingSubscriptionService {
     stripeSubscriptionId: string,
     targetPlanKey: BillingPlanKey,
   ): Promise<void> {
-    const { currentEditable, nextEditable } =
-      await this.loadScheduleEditable(stripeSubscriptionId);
+    const { currentPhase, nextPhase } =
+      await this.loadSchedule(stripeSubscriptionId);
 
     const currentDetails =
       await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-        currentEditable as BillingSubscriptionSchedulePhaseDTO,
+        currentPhase as BillingSubscriptionSchedulePhaseDTO,
       );
 
     const currentPlan = currentDetails.plan.planKey;
@@ -1099,13 +1097,13 @@ export class BillingSubscriptionService {
 
     // Case A: Already on target plan
     if (currentPlan === targetPlanKey) {
-      const hasNext = !!nextEditable;
+      const hasNext = !!nextPhase;
 
       if (!hasNext) return;
 
       const nextDetails =
         await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-          nextEditable as BillingSubscriptionSchedulePhaseDTO,
+          nextPhase as BillingSubscriptionSchedulePhaseDTO,
         );
 
       if (nextDetails.plan.planKey !== targetPlanKey) {
@@ -1165,13 +1163,13 @@ export class BillingSubscriptionService {
         planMeta: targetPlanKey,
       });
 
-      const { currentEditable, nextEditable, subscription, schedule } =
-        await this.loadScheduleEditable(stripeSubscriptionId);
+      const { currentPhase, nextPhase, subscription, schedule } =
+        await this.loadSchedule(stripeSubscriptionId);
 
-      if (nextEditable && currentEditable) {
+      if (nextPhase && currentPhase) {
         const nextDetails =
           await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-            nextEditable as BillingSubscriptionSchedulePhaseDTO,
+            nextPhase as BillingSubscriptionSchedulePhaseDTO,
           );
 
         const preservedNextInterval = nextDetails?.interval ?? interval;
@@ -1185,14 +1183,14 @@ export class BillingSubscriptionService {
           updateType: 'plan',
         });
 
-        const currentPhaseSnapshot =
-          this.billingSubscriptionPhaseService.toSnapshot(currentEditable);
+        const currentPhaseUpdateParam =
+          this.billingSubscriptionPhaseService.toUpdateParam(currentPhase);
 
-        const nextPhase =
-          await this.billingSubscriptionPhaseService.buildSnapshot(
+        const updatedNextPhase =
+          await this.billingSubscriptionPhaseService.buildPhaseUpdateParam(
             {
               start_date: subscription.current_period_end,
-              items: currentPhaseSnapshot.items,
+              items: currentPhaseUpdateParam.items,
               proration_behavior: 'none',
             } as Stripe.SubscriptionScheduleUpdateParams.Phase,
             mappedNext.targetLicensedPrice.stripePriceId,
@@ -1200,11 +1198,11 @@ export class BillingSubscriptionService {
             mappedNext.targetMeteredPrice.stripePriceId,
           );
 
-        return await this.scheduleReplaceNext({
+        return await this.updateSchedulePhases({
           subscription,
           scheduleId: schedule.id,
-          currentPhaseSnapshot,
-          nextPhase,
+          currentPhaseInput: currentPhaseUpdateParam,
+          nextPhaseInput: updatedNextPhase,
         });
       }
 
@@ -1216,11 +1214,11 @@ export class BillingSubscriptionService {
       currentPlan === BillingPlanKey.ENTERPRISE &&
       targetPlanKey === BillingPlanKey.PRO
     ) {
-      const hasNext = !!nextEditable;
+      const hasNext = !!nextPhase;
 
       const nextDetails = hasNext
         ? await this.billingSubscriptionPhaseService.getDetailsFromPhase(
-            nextEditable as BillingSubscriptionSchedulePhaseDTO,
+            nextPhase as BillingSubscriptionSchedulePhaseDTO,
           )
         : undefined;
 
@@ -1304,36 +1302,36 @@ export class BillingSubscriptionService {
     );
   }
 
-  private async scheduleReplaceNext(params: {
+  private async updateSchedulePhases(params: {
     scheduleId: string;
     subscription: SubscriptionWithSchedule | Stripe.Subscription;
-    currentPhaseSnapshot: Stripe.SubscriptionScheduleUpdateParams.Phase;
-    nextPhase?: Stripe.SubscriptionScheduleUpdateParams.Phase;
+    currentPhaseInput: Stripe.SubscriptionScheduleUpdateParams.Phase;
+    nextPhaseInput?: Stripe.SubscriptionScheduleUpdateParams.Phase;
   }): Promise<void> {
     const { scheduleId, subscription } = params;
-    let { nextPhase, currentPhaseSnapshot } = params;
+    let { currentPhaseInput, nextPhaseInput } = params;
 
     const currentPhaseToPersist: Stripe.SubscriptionScheduleUpdateParams.Phase =
       {
-        ...currentPhaseSnapshot,
+        ...currentPhaseInput,
         end_date: subscription.current_period_end,
       };
 
     if (
-      nextPhase &&
+      isDefined(nextPhaseInput) &&
       (await this.billingSubscriptionPhaseService.isSamePhaseSignature(
-        currentPhaseSnapshot,
-        nextPhase,
+        currentPhaseInput,
+        nextPhaseInput,
       ))
     ) {
-      nextPhase = undefined;
+      nextPhaseInput = undefined;
     }
 
     await this.stripeSubscriptionScheduleService.replaceEditablePhases(
       scheduleId,
       {
-        currentPhaseSnapshot: currentPhaseToPersist,
-        nextPhase,
+        currentPhaseUpdateParam: currentPhaseToPersist,
+        nextPhase: nextPhaseInput,
       },
     );
     const refreshed =
@@ -1453,28 +1451,29 @@ export class BillingSubscriptionService {
         subscription,
       );
 
-    const { currentEditable } =
-      this.stripeSubscriptionScheduleService.getEditablePhases(schedule);
-    const currentPhaseSnapshot =
-      this.billingSubscriptionPhaseService.toSnapshot(
-        currentEditable as Stripe.SubscriptionSchedule.Phase,
+    const { currentPhase } =
+      this.stripeSubscriptionScheduleService.getCurrentAndNextPhases(schedule);
+    const currentPhaseUpdateParam =
+      this.billingSubscriptionPhaseService.toUpdateParam(
+        currentPhase as Stripe.SubscriptionSchedule.Phase,
       );
-    const next = await this.billingSubscriptionPhaseService.buildSnapshot(
-      {
-        start_date: subscription.current_period_end,
-        items: currentPhaseSnapshot.items,
-        proration_behavior: 'none',
-      } as Stripe.SubscriptionScheduleUpdateParams.Phase,
-      prices.next.licensedPriceId,
-      prices.next.seats,
-      prices.next.meteredPriceId,
-    );
+    const next =
+      await this.billingSubscriptionPhaseService.buildPhaseUpdateParam(
+        {
+          start_date: subscription.current_period_end,
+          items: currentPhaseUpdateParam.items,
+          proration_behavior: 'none',
+        } as Stripe.SubscriptionScheduleUpdateParams.Phase,
+        prices.next.licensedPriceId,
+        prices.next.seats,
+        prices.next.meteredPriceId,
+      );
 
-    await this.scheduleReplaceNext({
+    await this.updateSchedulePhases({
       scheduleId: schedule.id,
       subscription,
-      currentPhaseSnapshot,
-      nextPhase: next,
+      currentPhaseInput: currentPhaseUpdateParam,
+      nextPhaseInput: next,
     });
   }
 

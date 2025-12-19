@@ -6,31 +6,31 @@ import { type ObjectLiteral, type Repository } from 'typeorm';
 import type Stripe from 'stripe';
 
 import { BillingCustomerEntity } from 'src/engine/core-modules/billing/entities/billing-customer.entity';
-import { BillingPriceEntity } from 'src/engine/core-modules/billing/entities/billing-price.entity';
-import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
-import { BillingSubscriptionItemEntity } from 'src/engine/core-modules/billing/entities/billing-subscription-item.entity';
 import { BillingEntitlementEntity } from 'src/engine/core-modules/billing/entities/billing-entitlement.entity';
-import { SubscriptionInterval } from 'src/engine/core-modules/billing/enums/billing-subscription-interval.enum';
-import { BillingProductKey } from 'src/engine/core-modules/billing/enums/billing-product-key.enum';
+import { BillingPriceEntity } from 'src/engine/core-modules/billing/entities/billing-price.entity';
+import { type BillingProductEntity } from 'src/engine/core-modules/billing/entities/billing-product.entity';
+import { BillingSubscriptionItemEntity } from 'src/engine/core-modules/billing/entities/billing-subscription-item.entity';
+import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
 import { BillingPlanKey } from 'src/engine/core-modules/billing/enums/billing-plan-key.enum';
-import { BillingUsageType } from 'src/engine/core-modules/billing/enums/billing-usage-type.enum';
+import { BillingProductKey } from 'src/engine/core-modules/billing/enums/billing-product-key.enum';
+import { SubscriptionInterval } from 'src/engine/core-modules/billing/enums/billing-subscription-interval.enum';
 import { SubscriptionStatus } from 'src/engine/core-modules/billing/enums/billing-subscription-status.enum';
-import { StripeSubscriptionScheduleService } from 'src/engine/core-modules/billing/stripe/services/stripe-subscription-schedule.service';
-import { StripeSubscriptionItemService } from 'src/engine/core-modules/billing/stripe/services/stripe-subscription-item.service';
-import { StripeCustomerService } from 'src/engine/core-modules/billing/stripe/services/stripe-customer.service';
+import { BillingUsageType } from 'src/engine/core-modules/billing/enums/billing-usage-type.enum';
 import { BillingPlanService } from 'src/engine/core-modules/billing/services/billing-plan.service';
+import { BillingPriceService } from 'src/engine/core-modules/billing/services/billing-price.service';
 import { BillingProductService } from 'src/engine/core-modules/billing/services/billing-product.service';
 import { BillingSubscriptionPhaseService } from 'src/engine/core-modules/billing/services/billing-subscription-phase.service';
-import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
-import { StripeSubscriptionService } from 'src/engine/core-modules/billing/stripe/services/stripe-subscription.service';
 import { BillingSubscriptionService } from 'src/engine/core-modules/billing/services/billing-subscription.service';
+import { StripeCustomerService } from 'src/engine/core-modules/billing/stripe/services/stripe-customer.service';
+import { StripeSubscriptionItemService } from 'src/engine/core-modules/billing/stripe/services/stripe-subscription-item.service';
+import { StripeSubscriptionScheduleService } from 'src/engine/core-modules/billing/stripe/services/stripe-subscription-schedule.service';
+import { StripeSubscriptionService } from 'src/engine/core-modules/billing/stripe/services/stripe-subscription.service';
 import { type BillingGetPlanResult } from 'src/engine/core-modules/billing/types/billing-get-plan-result.type';
-import { type WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
-import { type SubscriptionWithSchedule } from 'src/engine/core-modules/billing/types/billing-subscription-with-schedule.type';
-import { type BillingProductEntity } from 'src/engine/core-modules/billing/entities/billing-product.entity';
-import { type MeterBillingPriceTiers } from 'src/engine/core-modules/billing/types/meter-billing-price-tier.type';
 import { type BillingMeterPrice } from 'src/engine/core-modules/billing/types/billing-meter-price.type';
-import { BillingPriceService } from 'src/engine/core-modules/billing/services/billing-price.service';
+import { type SubscriptionWithSchedule } from 'src/engine/core-modules/billing/types/billing-subscription-with-schedule.type';
+import { type MeterBillingPriceTiers } from 'src/engine/core-modules/billing/types/meter-billing-price-tier.type';
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import { type WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 
 function repoMock<T extends ObjectLiteral>() {
   return {
@@ -353,12 +353,15 @@ describe('BillingSubscriptionService', () => {
     return spy;
   };
 
-  const arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences = (
+  const arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences = (
     snapshots: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [
       {} as Stripe.SubscriptionScheduleUpdateParams.Phase,
     ],
   ) => {
-    const spy = jest.spyOn(billingSubscriptionPhaseService, 'buildSnapshot');
+    const spy = jest.spyOn(
+      billingSubscriptionPhaseService,
+      'buildPhaseUpdateParam',
+    );
 
     snapshots.forEach((phase) => {
       spy.mockResolvedValueOnce(phase);
@@ -501,57 +504,63 @@ describe('BillingSubscriptionService', () => {
     meteredPriceId: string,
     quantity = 7,
   ) =>
-    jest.spyOn(billingSubscriptionPhaseService, 'toSnapshot').mockReturnValue({
-      end_date: Date.now() + 1000,
-      items: [{ price: licensedPriceId, quantity }, { price: meteredPriceId }],
-    } as Stripe.SubscriptionScheduleUpdateParams.Phase);
+    jest
+      .spyOn(billingSubscriptionPhaseService, 'toUpdateParam')
+      .mockReturnValue({
+        end_date: Date.now() + 1000,
+        items: [
+          { price: licensedPriceId, quantity },
+          { price: meteredPriceId },
+        ],
+      } as Stripe.SubscriptionScheduleUpdateParams.Phase);
 
-  const arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences = (
-    sequences: Array<{
-      currentEditable: {
-        licensedPriceId: string;
-        meteredPriceId: string;
-        quantity?: number;
-      };
-      nextEditable?: {
-        licensedPriceId?: string;
-        meteredPriceId?: string;
-        quantity?: number;
-      };
-    }> = [],
-  ) => {
-    const spy = jest.spyOn(
-      stripeSubscriptionScheduleService,
-      'getEditablePhases',
-    );
+  const arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences =
+    (
+      sequences: Array<{
+        currentPhase: {
+          licensedPriceId: string;
+          meteredPriceId: string;
+          quantity?: number;
+        };
+        nextPhase?: {
+          licensedPriceId?: string;
+          meteredPriceId?: string;
+          quantity?: number;
+        };
+      }> = [],
+    ) => {
+      const spy = jest.spyOn(
+        stripeSubscriptionScheduleService,
+        'getCurrentAndNextPhases',
+      );
 
-    sequences.forEach((sequence) => {
-      spy.mockReturnValueOnce({
-        currentEditable: {
-          items: [
-            {
-              price: sequence.currentEditable.licensedPriceId,
-              quantity: sequence.currentEditable.quantity ?? 7,
-            },
-            { price: sequence.currentEditable.meteredPriceId },
-          ],
-        } as Stripe.SubscriptionSchedule.Phase,
-        nextEditable: sequence.nextEditable
-          ? ({
-              items: [
-                {
-                  price: sequence.nextEditable.licensedPriceId,
-                  quantity: sequence.nextEditable.quantity ?? 7,
-                },
-                { price: sequence.nextEditable.meteredPriceId },
-              ],
-            } as Stripe.SubscriptionSchedule.Phase)
-          : undefined,
+      sequences.forEach((sequence) => {
+        spy.mockReturnValueOnce({
+          currentPhase: {
+            items: [
+              {
+                price: sequence.currentPhase.licensedPriceId,
+                quantity: sequence.currentPhase.quantity ?? 7,
+              },
+              { price: sequence.currentPhase.meteredPriceId },
+            ],
+          } as Stripe.SubscriptionSchedule.Phase,
+          nextPhase: sequence.nextPhase
+            ? ({
+                items: [
+                  {
+                    price: sequence.nextPhase.licensedPriceId,
+                    quantity: sequence.nextPhase.quantity ?? 7,
+                  },
+                  { price: sequence.nextPhase.meteredPriceId },
+                ],
+              } as Stripe.SubscriptionSchedule.Phase)
+            : undefined,
+        });
       });
-    });
 
-    return spy;
-  };
+      return spy;
+    };
 
   const arrangeBillingProductServiceGetProductPricesSequence = (
     first: Array<Partial<BillingPriceEntity>>,
@@ -601,7 +610,7 @@ describe('BillingSubscriptionService', () => {
           useValue: {
             getSubscriptionWithSchedule: jest.fn(),
             findOrCreateSubscriptionSchedule: jest.fn(),
-            getEditablePhases: jest.fn(),
+            getCurrentAndNextPhases: jest.fn(),
             replaceEditablePhases: jest.fn(),
           },
         },
@@ -627,7 +636,7 @@ describe('BillingSubscriptionService', () => {
           useValue: {
             getSubscriptionWithSchedule: jest.fn(),
             findOrCreateSubscriptionSchedule: jest.fn(),
-            getEditablePhases: jest.fn(),
+            getCurrentAndNextPhases: jest.fn(),
             replaceEditablePhases: jest.fn(),
           },
         },
@@ -636,7 +645,7 @@ describe('BillingSubscriptionService', () => {
           useValue: {
             getDetailsFromPhase: jest.fn(),
             toSnapshot: jest.fn(),
-            buildSnapshot: jest.fn(),
+            buildPhaseUpdateParam: jest.fn(),
             getLicensedPriceIdFromSnapshot: jest.fn(),
             isSamePhaseSignature: jest.fn(),
           },
@@ -717,23 +726,25 @@ describe('BillingSubscriptionService', () => {
             quantity: 7,
           });
 
-        const spyGetEditablePhases =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
-                meteredPriceId: METER_PRICE_PRO_MONTH_ID,
-                quantity: 7,
+        const spygetCurrentAndNextPhases =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
+                  meteredPriceId: METER_PRICE_PRO_MONTH_ID,
+                  quantity: 7,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
-                meteredPriceId: METER_PRICE_PRO_MONTH_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
+                  meteredPriceId: METER_PRICE_PRO_MONTH_ID,
+                  quantity: 7,
+                },
               },
-            },
-          ]);
+            ],
+          );
         const spyGetProductPrices =
           arrangeBillingProductServiceGetProductPrices([
             {
@@ -818,7 +829,7 @@ describe('BillingSubscriptionService', () => {
         expect(spyFindOrCreateSchedule).toHaveBeenCalledTimes(2);
         expect(spyBillingPriceFindOneOrFail).toHaveBeenCalledTimes(1);
         expect(spyGetDetailsFromPhase).toHaveBeenCalledTimes(1);
-        expect(spyGetEditablePhases).toHaveBeenCalledTimes(2);
+        expect(spygetCurrentAndNextPhases).toHaveBeenCalledTimes(2);
         expect(spyGetProductPrices).toHaveBeenCalledTimes(1);
         expect(spySubFindOneOrFail).toHaveBeenCalledTimes(1);
         expect(spyUpdateSubscription).toHaveBeenCalledTimes(1);
@@ -847,29 +858,31 @@ describe('BillingSubscriptionService', () => {
               quantity: 7,
             },
           ]);
-        const spyGetEditablePhasesSeq2 =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_YEAR_ID,
-                meteredPriceId: METER_PRICE_PRO_YEAR_ID,
+        const spygetCurrentAndNextPhasesSeq2 =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_YEAR_ID,
+                  meteredPriceId: METER_PRICE_PRO_YEAR_ID,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
+                  meteredPriceId: METER_PRICE_PRO_MONTH_ID,
+                },
               },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
-                meteredPriceId: METER_PRICE_PRO_MONTH_ID,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
+                  meteredPriceId: METER_PRICE_PRO_MONTH_ID,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
-              },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
-                meteredPriceId: METER_PRICE_PRO_MONTH_ID,
-              },
-            },
-          ]);
+            ],
+          );
         const spyGetProductPrices2 =
           arrangeBillingProductServiceGetProductPrices([
             {
@@ -920,8 +933,8 @@ describe('BillingSubscriptionService', () => {
         const spySubFindByOrFail2 =
           arrangeBillingSubscriptionRepositoryFindOneOrFail();
 
-        const spyBuildSnapshot2 =
-          arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences([
+        const spyBuildPhaseUpdateParam2 =
+          arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences([
             {
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_MONTH_ID, quantity: 7 },
@@ -963,7 +976,7 @@ describe('BillingSubscriptionService', () => {
         ).toHaveBeenCalledWith(
           'scheduleId',
           expect.objectContaining({
-            currentPhaseSnapshot: expect.objectContaining({
+            currentPhaseUpdateParam: expect.objectContaining({
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_YEAR_ID, quantity: 7 },
                 { price: METER_PRICE_ENTERPRISE_YEAR_ID },
@@ -983,11 +996,11 @@ describe('BillingSubscriptionService', () => {
         expect(spyBillingSubscriptionRepositoryFind2).toHaveBeenCalledTimes(1);
         expect(spyFindOrCreateSchedule2).toHaveBeenCalledTimes(2);
         expect(spyGetDetailsFromPhaseSeq2).toHaveBeenCalledTimes(2);
-        expect(spyGetEditablePhasesSeq2).toHaveBeenCalledTimes(2);
+        expect(spygetCurrentAndNextPhasesSeq2).toHaveBeenCalledTimes(2);
         expect(spyGetProductPrices2).toHaveBeenCalledTimes(2);
         expect(spyToSnapshot2).toHaveBeenCalledTimes(1);
         expect(spySubFindByOrFail2).toHaveBeenCalledTimes(2);
-        expect(spyBuildSnapshot2).toHaveBeenCalledTimes(1);
+        expect(spyBuildPhaseUpdateParam2).toHaveBeenCalledTimes(1);
         expect(spyGetSubWithSchedule2).toHaveBeenCalledTimes(3);
         expect(spySubFindOneOrFail2).toHaveBeenCalledTimes(2);
         expect(spyUpdateSubscription2).toHaveBeenCalledTimes(1);
@@ -1015,23 +1028,25 @@ describe('BillingSubscriptionService', () => {
             quantity: 7,
           });
 
-        const spyGetEditablePhasesD1 =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
-                quantity: 7,
+        const spygetCurrentAndNextPhasesD1 =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
+                  quantity: 7,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
+                  quantity: 7,
+                },
               },
-            },
-          ]);
+            ],
+          );
         const spyGetProductPricesSeqD1 =
           arrangeBillingProductServiceGetProductPricesSequence(
             [
@@ -1120,8 +1135,8 @@ describe('BillingSubscriptionService', () => {
             LICENSE_PRICE_ENTERPRISE_MONTH_ID,
             METER_PRICE_ENTERPRISE_MONTH_ID,
           );
-        const spyBuildSnapshotD1 =
-          arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences([
+        const spyBuildPhaseUpdateParamD1 =
+          arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences([
             {
               items: [
                 { price: LICENSE_PRICE_PRO_MONTH_ID, quantity: 7 },
@@ -1147,7 +1162,7 @@ describe('BillingSubscriptionService', () => {
         ).toHaveBeenCalledWith(
           'scheduleId',
           expect.objectContaining({
-            currentPhaseSnapshot: expect.objectContaining({
+            currentPhaseUpdateParam: expect.objectContaining({
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_MONTH_ID, quantity: 7 },
                 { price: METER_PRICE_ENTERPRISE_MONTH_ID },
@@ -1167,10 +1182,10 @@ describe('BillingSubscriptionService', () => {
         expect(spyBillingSubscriptionRepositoryFindD1).toHaveBeenCalledTimes(1);
         expect(spyFindOrCreateScheduleD1).toHaveBeenCalledTimes(2);
         expect(spyGetDetailsFromPhaseD1).toHaveBeenCalledTimes(1);
-        expect(spyGetEditablePhasesD1).toHaveBeenCalledTimes(2);
+        expect(spygetCurrentAndNextPhasesD1).toHaveBeenCalledTimes(2);
         expect(spyGetProductPricesSeqD1).toHaveBeenCalledTimes(2);
         expect(spyToSnapshotD1).toHaveBeenCalledTimes(1);
-        expect(spyBuildSnapshotD1).toHaveBeenCalledTimes(1);
+        expect(spyBuildPhaseUpdateParamD1).toHaveBeenCalledTimes(1);
         expect(spyPriceFindByOrFailD1).toHaveBeenCalledTimes(2);
         expect(spyGetSubWithScheduleD1).toHaveBeenCalledTimes(3);
         expect(spySubFindByOrFailD1).toHaveBeenCalledTimes(1);
@@ -1204,22 +1219,24 @@ describe('BillingSubscriptionService', () => {
             },
           ]);
 
-        const spyGetEditablePhasesSeqD2 =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+        const spygetCurrentAndNextPhasesSeqD2 =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                  quantity: 7,
+                },
               },
-            },
-          ]);
+            ],
+          );
         const spyGetProductPricesSeqD2 =
           arrangeBillingProductServiceGetProductPricesSequence(
             [
@@ -1309,8 +1326,8 @@ describe('BillingSubscriptionService', () => {
             LICENSE_PRICE_ENTERPRISE_YEAR_ID,
             METER_PRICE_ENTERPRISE_YEAR_ID,
           );
-        const spyBuildSnapshotD2 =
-          arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences([
+        const spyBuildPhaseUpdateParamD2 =
+          arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences([
             {
               items: [
                 { price: LICENSE_PRICE_PRO_MONTH_ID, quantity: 7 },
@@ -1336,7 +1353,7 @@ describe('BillingSubscriptionService', () => {
         expect(
           stripeSubscriptionScheduleService.replaceEditablePhases,
         ).toHaveBeenCalledWith('scheduleId', {
-          currentPhaseSnapshot: expect.objectContaining({
+          currentPhaseUpdateParam: expect.objectContaining({
             items: [
               { price: LICENSE_PRICE_ENTERPRISE_YEAR_ID, quantity: 7 },
               { price: METER_PRICE_ENTERPRISE_YEAR_ID },
@@ -1355,10 +1372,10 @@ describe('BillingSubscriptionService', () => {
         expect(spyBillingSubscriptionRepositoryFindD2).toHaveBeenCalledTimes(1);
         expect(spyFindOrCreateScheduleD2).toHaveBeenCalledTimes(2);
         expect(spyGetDetailsFromPhaseSeqD2).toHaveBeenCalledTimes(1);
-        expect(spyGetEditablePhasesSeqD2).toHaveBeenCalledTimes(2);
+        expect(spygetCurrentAndNextPhasesSeqD2).toHaveBeenCalledTimes(2);
         expect(spyGetProductPricesSeqD2).toHaveBeenCalledTimes(2);
         expect(spyToSnapshotD2).toHaveBeenCalledTimes(1);
-        expect(spyBuildSnapshotD2).toHaveBeenCalledTimes(1);
+        expect(spyBuildPhaseUpdateParamD2).toHaveBeenCalledTimes(1);
         expect(spyPriceFindByOrFailD2).toHaveBeenCalledTimes(2);
         expect(spyGetSubWithScheduleD2).toHaveBeenCalledTimes(3);
         expect(spySubFindByOrFailD2).toHaveBeenCalledTimes(1);
@@ -1381,30 +1398,32 @@ describe('BillingSubscriptionService', () => {
             licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
             meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
           });
-        const spyGetEditablePhases =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
-                quantity: 7,
+        const spygetCurrentAndNextPhases =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
+                  quantity: 7,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
+                  quantity: 7,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
+                  quantity: 7,
+                },
               },
-            },
-          ]);
+            ],
+          );
         const spyGetProductPrices =
           arrangeBillingProductServiceGetProductPrices();
         const spyPriceFindByOrFail =
@@ -1451,7 +1470,7 @@ describe('BillingSubscriptionService', () => {
         expect(spyBillingSubscriptionRepositoryFind).toHaveBeenCalledTimes(1);
         expect(spyFindOrCreateSchedule).toHaveBeenCalledTimes(3);
         expect(spyGetDetailsFromPhase1).toHaveBeenCalledTimes(1);
-        expect(spyGetEditablePhases).toHaveBeenCalledTimes(3);
+        expect(spygetCurrentAndNextPhases).toHaveBeenCalledTimes(3);
         expect(spyGetProductPrices).toHaveBeenCalledTimes(1);
         expect(spyPriceFindByOrFail).toHaveBeenCalledTimes(1);
         expect(spySubFindOneOrFail).toHaveBeenCalledTimes(1);
@@ -1478,45 +1497,47 @@ describe('BillingSubscriptionService', () => {
             quantity: 7,
           });
 
-        const spyGetEditablePhases =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
-                quantity: 7,
+        const spygetCurrentAndNextPhases =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
+                  quantity: 7,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                  quantity: 7,
+                },
               },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
+                  quantity: 7,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                  quantity: 7,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
+                  quantity: 7,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                  quantity: 7,
+                },
               },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
-                quantity: 7,
-              },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_ID,
-                quantity: 7,
-              },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
-                quantity: 7,
-              },
-            },
-          ]);
+            ],
+          );
 
         const spyGetProductPrices =
           arrangeBillingProductServiceGetProductPrices([
@@ -1566,8 +1587,8 @@ describe('BillingSubscriptionService', () => {
           arrangeStripeSubscriptionScheduleServiceGetSubscriptionWithSchedule();
         const spySubFindByOrFail =
           arrangeBillingSubscriptionRepositoryFindOneOrFail();
-        const spyBuildSnapshot =
-          arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences([
+        const spyBuildPhaseUpdateParam =
+          arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences([
             {
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_YEAR_ID, quantity: 7 },
@@ -1605,7 +1626,7 @@ describe('BillingSubscriptionService', () => {
         ).toHaveBeenCalledWith(
           'scheduleId',
           expect.objectContaining({
-            currentPhaseSnapshot: expect.objectContaining({
+            currentPhaseUpdateParam: expect.objectContaining({
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_MONTH_ID, quantity: 7 },
                 { price: METER_PRICE_ENTERPRISE_MONTH_ID },
@@ -1625,12 +1646,12 @@ describe('BillingSubscriptionService', () => {
         expect(spyBillingSubscriptionRepositoryFind).toHaveBeenCalledTimes(1);
         expect(spyFindOrCreateSchedule).toHaveBeenCalledTimes(3);
         expect(spyGetDetailsFromPhase1).toHaveBeenCalledTimes(2);
-        expect(spyGetEditablePhases).toHaveBeenCalledTimes(3);
+        expect(spygetCurrentAndNextPhases).toHaveBeenCalledTimes(3);
         expect(spyGetProductPrices).toHaveBeenCalledTimes(2);
         expect(spyPriceFindByOrFail).toHaveBeenCalledTimes(2);
         expect(spyGetSubWithSchedule).toHaveBeenCalledTimes(4);
         expect(spySubFindByOrFail).toHaveBeenCalledTimes(2);
-        expect(spyBuildSnapshot).toHaveBeenCalledTimes(1);
+        expect(spyBuildPhaseUpdateParam).toHaveBeenCalledTimes(1);
         expect(spyToSnapshot).toHaveBeenCalledTimes(1);
         expect(spySyncDB).toHaveBeenCalledTimes(2);
         expect(spySubFindOneOrFail).toHaveBeenCalledTimes(2);
@@ -1658,30 +1679,32 @@ describe('BillingSubscriptionService', () => {
             quantity: 7,
           });
 
-        const spyGetEditablePhases =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
-                quantity: 7,
+        const spygetCurrentAndNextPhases =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                  quantity: 7,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                  quantity: 7,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                  quantity: 7,
+                },
               },
-            },
-          ]);
+            ],
+          );
 
         const spyGetProductPrices =
           arrangeBillingProductServiceGetProductPrices([
@@ -1738,8 +1761,8 @@ describe('BillingSubscriptionService', () => {
           METER_PRICE_ENTERPRISE_YEAR_ID,
           7,
         );
-        const spyBuildSnapshot =
-          arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences([
+        const spyBuildPhaseUpdateParam =
+          arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences([
             {
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_MONTH_ID, quantity: 7 },
@@ -1759,7 +1782,7 @@ describe('BillingSubscriptionService', () => {
         expect(
           stripeSubscriptionScheduleService.replaceEditablePhases,
         ).toHaveBeenCalledWith('scheduleId', {
-          currentPhaseSnapshot: expect.objectContaining({
+          currentPhaseUpdateParam: expect.objectContaining({
             items: [
               { price: LICENSE_PRICE_ENTERPRISE_YEAR_ID, quantity: 7 },
               { price: METER_PRICE_ENTERPRISE_YEAR_ID },
@@ -1778,13 +1801,13 @@ describe('BillingSubscriptionService', () => {
         expect(spyBillingSubscriptionRepositoryFind).toHaveBeenCalledTimes(1);
         expect(spyFindOrCreateSchedule).toHaveBeenCalledTimes(3);
         expect(spyGetDetailsFromPhase).toHaveBeenCalledTimes(1);
-        expect(spyGetEditablePhases).toHaveBeenCalledTimes(3);
+        expect(spygetCurrentAndNextPhases).toHaveBeenCalledTimes(3);
         expect(spyGetProductPrices).toHaveBeenCalledTimes(2);
         expect(spyPriceFindByOrFail).toHaveBeenCalledTimes(2);
         expect(spyGetSubWithSchedule).toHaveBeenCalledTimes(4);
         expect(spySubFindByOrFail).toHaveBeenCalledTimes(1);
         expect(spyToSnapshot).toHaveBeenCalledTimes(1);
-        expect(spyBuildSnapshot).toHaveBeenCalledTimes(1);
+        expect(spyBuildPhaseUpdateParam).toHaveBeenCalledTimes(1);
         expect(spySyncDB).toHaveBeenCalledTimes(1);
       });
       it('YEARLY -> MONTHLY with existing phases', async () => {
@@ -1809,45 +1832,47 @@ describe('BillingSubscriptionService', () => {
             quantity: 7,
           });
 
-        const spyGetEditablePhases =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
-                quantity: 7,
+        const spygetCurrentAndNextPhases =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                  quantity: 7,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_YEAR_ID,
+                  meteredPriceId: METER_PRICE_PRO_YEAR_ID,
+                  quantity: 7,
+                },
               },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_YEAR_ID,
-                meteredPriceId: METER_PRICE_PRO_YEAR_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                  quantity: 7,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_YEAR_ID,
+                  meteredPriceId: METER_PRICE_PRO_YEAR_ID,
+                  quantity: 7,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
+                  quantity: 7,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_YEAR_ID,
+                  meteredPriceId: METER_PRICE_PRO_YEAR_ID,
+                  quantity: 7,
+                },
               },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_YEAR_ID,
-                meteredPriceId: METER_PRICE_PRO_YEAR_ID,
-                quantity: 7,
-              },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_YEAR_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_YEAR_ID,
-                quantity: 7,
-              },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_YEAR_ID,
-                meteredPriceId: METER_PRICE_PRO_YEAR_ID,
-                quantity: 7,
-              },
-            },
-          ]);
+            ],
+          );
 
         const spyGetProductPrices =
           arrangeBillingProductServiceGetProductPrices([
@@ -1904,8 +1929,8 @@ describe('BillingSubscriptionService', () => {
           METER_PRICE_ENTERPRISE_YEAR_ID,
           7,
         );
-        const spyBuildSnapshot =
-          arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences([
+        const spyBuildPhaseUpdateParam =
+          arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences([
             {
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_MONTH_ID, quantity: 7 },
@@ -1925,7 +1950,7 @@ describe('BillingSubscriptionService', () => {
         expect(
           stripeSubscriptionScheduleService.replaceEditablePhases,
         ).toHaveBeenCalledWith('scheduleId', {
-          currentPhaseSnapshot: expect.objectContaining({
+          currentPhaseUpdateParam: expect.objectContaining({
             items: [
               { price: LICENSE_PRICE_ENTERPRISE_YEAR_ID, quantity: 7 },
               { price: METER_PRICE_ENTERPRISE_YEAR_ID },
@@ -1944,13 +1969,13 @@ describe('BillingSubscriptionService', () => {
         expect(spyBillingSubscriptionRepositoryFind).toHaveBeenCalledTimes(1);
         expect(spyFindOrCreateSchedule).toHaveBeenCalledTimes(3);
         expect(spyGetDetailsFromPhase).toHaveBeenCalledTimes(2);
-        expect(spyGetEditablePhases).toHaveBeenCalledTimes(3);
+        expect(spygetCurrentAndNextPhases).toHaveBeenCalledTimes(3);
         expect(spyGetProductPrices).toHaveBeenCalledTimes(2);
         expect(spyPriceFindByOrFail).toHaveBeenCalledTimes(2);
         expect(spyGetSubWithSchedule).toHaveBeenCalledTimes(4);
         expect(spySubFindByOrFail).toHaveBeenCalledTimes(1);
         expect(spyToSnapshot).toHaveBeenCalledTimes(1);
-        expect(spyBuildSnapshot).toHaveBeenCalledTimes(1);
+        expect(spyBuildPhaseUpdateParam).toHaveBeenCalledTimes(1);
         expect(spySyncDB).toHaveBeenCalledTimes(1);
       });
     });
@@ -1991,23 +2016,25 @@ describe('BillingSubscriptionService', () => {
               },
             ],
           });
-        const spyGetEditablePhases =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
-                quantity: 7,
+        const spygetCurrentAndNextPhases =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
+                  quantity: 7,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
+                  quantity: 7,
+                },
               },
-            },
-          ]);
+            ],
+          );
         const spyGetProductPrices =
           arrangeBillingProductServiceGetProductPrices([
             {
@@ -2124,7 +2151,7 @@ describe('BillingSubscriptionService', () => {
         expect(spyBillingSubscriptionRepositoryFind).toHaveBeenCalledTimes(1);
         expect(spyFindOrCreateSchedule).toHaveBeenCalledTimes(2);
         expect(spyGetDetailsFromPhase).toHaveBeenCalledTimes(1);
-        expect(spyGetEditablePhases).toHaveBeenCalledTimes(2);
+        expect(spygetCurrentAndNextPhases).toHaveBeenCalledTimes(2);
         expect(spyGetProductPrices).toHaveBeenCalledTimes(2);
         expect(spyPriceFindByOrFail).toHaveBeenCalledTimes(3);
         expect(spyGetSubWithSchedule).toHaveBeenCalledTimes(3);
@@ -2192,33 +2219,35 @@ describe('BillingSubscriptionService', () => {
               ],
             },
           ]);
-        const spyGetEditablePhases =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
-                quantity: 7,
+        const spygetCurrentAndNextPhases =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
+                  quantity: 7,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
+                  meteredPriceId: METER_PRICE_PRO_MONTH_TIER_LOW_ID,
+                  quantity: 7,
+                },
               },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
-                meteredPriceId: METER_PRICE_PRO_MONTH_TIER_LOW_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
+                  quantity: 7,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
+                  meteredPriceId: METER_PRICE_PRO_MONTH_TIER_LOW_ID,
+                  quantity: 7,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
-                quantity: 7,
-              },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
-                meteredPriceId: METER_PRICE_PRO_MONTH_TIER_LOW_ID,
-                quantity: 7,
-              },
-            },
-          ]);
+            ],
+          );
         const spyGetProductPrices =
           arrangeBillingProductServiceGetProductPrices([
             {
@@ -2302,8 +2331,8 @@ describe('BillingSubscriptionService', () => {
           7,
         );
 
-        const spyBuildSnapshotSeq =
-          arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences([
+        const spyBuildPhaseUpdateParamSeq =
+          arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences([
             {
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_MONTH_ID, quantity: 7 },
@@ -2317,8 +2346,8 @@ describe('BillingSubscriptionService', () => {
               ],
             } as Stripe.SubscriptionScheduleUpdateParams.Phase,
           ]);
-        const spyBuildSnapshot =
-          arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences([
+        const spyBuildPhaseUpdateParam =
+          arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences([
             {
               items: [
                 { price: LICENSE_PRICE_PRO_MONTH_ID, quantity: 7 },
@@ -2341,7 +2370,7 @@ describe('BillingSubscriptionService', () => {
         ).toHaveBeenCalledWith(
           'scheduleId',
           expect.objectContaining({
-            currentPhaseSnapshot: {
+            currentPhaseUpdateParam: {
               end_date: expect.any(Number),
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_MONTH_ID, quantity: 7 },
@@ -2362,14 +2391,14 @@ describe('BillingSubscriptionService', () => {
         expect(spyBillingSubscriptionRepositoryFind).toHaveBeenCalledTimes(1);
         expect(spyFindOrCreateSchedule).toHaveBeenCalledTimes(2);
         expect(spyGetDetailsFromPhaseSeq).toHaveBeenCalledTimes(3);
-        expect(spyGetEditablePhases).toHaveBeenCalledTimes(2);
+        expect(spygetCurrentAndNextPhases).toHaveBeenCalledTimes(2);
         expect(spyGetProductPrices).toHaveBeenCalledTimes(2);
         expect(spyPriceFindByOrFail).toHaveBeenCalledTimes(3);
         expect(spyGetSubWithSchedule).toHaveBeenCalledTimes(3);
         expect(spyUpdateSubscription).toHaveBeenCalledTimes(1);
         expect(spyToSnapshot).toHaveBeenCalledTimes(2);
-        expect(spyBuildSnapshotSeq).toHaveBeenCalledTimes(2);
-        expect(spyBuildSnapshot).toHaveBeenCalledTimes(2);
+        expect(spyBuildPhaseUpdateParamSeq).toHaveBeenCalledTimes(2);
+        expect(spyBuildPhaseUpdateParam).toHaveBeenCalledTimes(2);
         expect(spySyncDB).toHaveBeenCalledTimes(2);
       });
     });
@@ -2410,8 +2439,8 @@ describe('BillingSubscriptionService', () => {
               ],
             },
           ]);
-        const spyBuildSnapshot =
-          arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences([
+        const spyBuildPhaseUpdateParam =
+          arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences([
             {
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_MONTH_ID, quantity: 7 },
@@ -2420,16 +2449,18 @@ describe('BillingSubscriptionService', () => {
               proration_behavior: 'none',
             } as Stripe.SubscriptionScheduleUpdateParams.Phase,
           ]);
-        const spyGetEditablePhases =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_HIGH_ID,
-                quantity: 7,
+        const spygetCurrentAndNextPhases =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_HIGH_ID,
+                  quantity: 7,
+                },
               },
-            },
-          ]);
+            ],
+          );
         const spyGetProductPrices =
           arrangeBillingProductServiceGetProductPrices([
             {
@@ -2521,7 +2552,7 @@ describe('BillingSubscriptionService', () => {
         ).toHaveBeenCalledWith(
           'scheduleId',
           expect.objectContaining({
-            currentPhaseSnapshot: expect.objectContaining({
+            currentPhaseUpdateParam: expect.objectContaining({
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_MONTH_ID, quantity: 7 },
                 { price: METER_PRICE_ENTERPRISE_MONTH_TIER_HIGH_ID },
@@ -2541,8 +2572,8 @@ describe('BillingSubscriptionService', () => {
         expect(spyBillingSubscriptionRepositoryFind).toHaveBeenCalledTimes(1);
         expect(spyFindOrCreateSchedule).toHaveBeenCalledTimes(1);
         expect(spyGetDetailsFromPhaseSeq).toHaveBeenCalledTimes(1);
-        expect(spyBuildSnapshot).toHaveBeenCalledTimes(1);
-        expect(spyGetEditablePhases).toHaveBeenCalledTimes(1);
+        expect(spyBuildPhaseUpdateParam).toHaveBeenCalledTimes(1);
+        expect(spygetCurrentAndNextPhases).toHaveBeenCalledTimes(1);
         expect(spyGetProductPrices).toHaveBeenCalledTimes(2);
         expect(spyPriceFindByOrFail).toHaveBeenCalledTimes(3);
         expect(spyGetSubWithSchedule).toHaveBeenCalledTimes(2);
@@ -2609,33 +2640,35 @@ describe('BillingSubscriptionService', () => {
               ],
             },
           ]);
-        const spyGetEditablePhases =
-          arrangeStripeSubscriptionScheduleServiceGetEditablePhasesSequences([
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
-                quantity: 7,
+        const spygetCurrentAndNextPhases =
+          arrangeStripeSubscriptionScheduleServicegetCurrentAndNextPhasesSequences(
+            [
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
+                  quantity: 7,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
+                  meteredPriceId: METER_PRICE_PRO_MONTH_TIER_LOW_ID,
+                  quantity: 7,
+                },
               },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
-                meteredPriceId: METER_PRICE_PRO_MONTH_TIER_LOW_ID,
-                quantity: 7,
+              {
+                currentPhase: {
+                  licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
+                  meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
+                  quantity: 7,
+                },
+                nextPhase: {
+                  licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
+                  meteredPriceId: METER_PRICE_PRO_MONTH_TIER_LOW_ID,
+                  quantity: 7,
+                },
               },
-            },
-            {
-              currentEditable: {
-                licensedPriceId: LICENSE_PRICE_ENTERPRISE_MONTH_ID,
-                meteredPriceId: METER_PRICE_ENTERPRISE_MONTH_TIER_LOW_ID,
-                quantity: 7,
-              },
-              nextEditable: {
-                licensedPriceId: LICENSE_PRICE_PRO_MONTH_ID,
-                meteredPriceId: METER_PRICE_PRO_MONTH_TIER_LOW_ID,
-                quantity: 7,
-              },
-            },
-          ]);
+            ],
+          );
         const spyGetProductPrices =
           arrangeBillingProductServiceGetProductPrices([
             {
@@ -2719,8 +2752,8 @@ describe('BillingSubscriptionService', () => {
           7,
         );
 
-        const spyBuildSnapshotSeq =
-          arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences([
+        const spyBuildPhaseUpdateParamSeq =
+          arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences([
             {
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_MONTH_ID, quantity: 7 },
@@ -2734,8 +2767,8 @@ describe('BillingSubscriptionService', () => {
               ],
             } as Stripe.SubscriptionScheduleUpdateParams.Phase,
           ]);
-        const spyBuildSnapshot =
-          arrangeBillingSubscriptionPhaseServiceBuildSnapshotSequences([
+        const spyBuildPhaseUpdateParam =
+          arrangeBillingSubscriptionPhaseServiceBuildPhaseUpdateParamSequences([
             {
               items: [
                 { price: LICENSE_PRICE_PRO_MONTH_ID, quantity: 7 },
@@ -2757,7 +2790,7 @@ describe('BillingSubscriptionService', () => {
         ).toHaveBeenCalledWith(
           'scheduleId',
           expect.objectContaining({
-            currentPhaseSnapshot: expect.objectContaining({
+            currentPhaseUpdateParam: expect.objectContaining({
               items: [
                 { price: LICENSE_PRICE_ENTERPRISE_MONTH_ID, quantity: 7 },
                 { price: METER_PRICE_ENTERPRISE_MONTH_TIER_HIGH_ID },
@@ -2777,14 +2810,14 @@ describe('BillingSubscriptionService', () => {
         expect(spyBillingSubscriptionRepositoryFind).toHaveBeenCalledTimes(1);
         expect(spyFindOrCreateSchedule).toHaveBeenCalledTimes(2);
         expect(spyGetDetailsFromPhaseSeq).toHaveBeenCalledTimes(3);
-        expect(spyGetEditablePhases).toHaveBeenCalledTimes(2);
+        expect(spygetCurrentAndNextPhases).toHaveBeenCalledTimes(2);
         expect(spyGetProductPrices).toHaveBeenCalledTimes(2);
         expect(spyPriceFindByOrFail).toHaveBeenCalledTimes(3);
         expect(spyGetSubWithSchedule).toHaveBeenCalledTimes(3);
         expect(spyUpdateSubscription).toHaveBeenCalledTimes(1);
         expect(spyToSnapshot).toHaveBeenCalledTimes(2);
-        expect(spyBuildSnapshotSeq).toHaveBeenCalledTimes(2);
-        expect(spyBuildSnapshot).toHaveBeenCalledTimes(2);
+        expect(spyBuildPhaseUpdateParamSeq).toHaveBeenCalledTimes(2);
+        expect(spyBuildPhaseUpdateParam).toHaveBeenCalledTimes(2);
         expect(spySyncDB).toHaveBeenCalledTimes(2);
       });
     });

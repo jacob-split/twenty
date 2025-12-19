@@ -6,14 +6,14 @@ import { findOrThrow } from 'twenty-shared/utils';
 
 import type Stripe from 'stripe';
 
-import { StripeSDKService } from 'src/engine/core-modules/billing/stripe/stripe-sdk/services/stripe-sdk.service';
-import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
-import { SubscriptionWithSchedule } from 'src/engine/core-modules/billing/types/billing-subscription-with-schedule.type';
-import { normalizePriceRef } from 'src/engine/core-modules/billing/utils/normalize-price-ref.utils';
 import {
   BillingException,
   BillingExceptionCode,
 } from 'src/engine/core-modules/billing/billing.exception';
+import { StripeSDKService } from 'src/engine/core-modules/billing/stripe/stripe-sdk/services/stripe-sdk.service';
+import { SubscriptionWithSchedule } from 'src/engine/core-modules/billing/types/billing-subscription-with-schedule.type';
+import { normalizePriceRef } from 'src/engine/core-modules/billing/utils/normalize-price-ref.utils';
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
 @Injectable()
 export class StripeSubscriptionScheduleService {
@@ -63,10 +63,10 @@ export class StripeSubscriptionScheduleService {
     return Math.max(cEnd, curPhaseEnd, nStart, now + 1);
   }
 
-  getEditablePhases(live: Stripe.SubscriptionSchedule) {
+  getCurrentAndNextPhases(live: Stripe.SubscriptionSchedule) {
     const now = Math.floor(Date.now() / 1000);
 
-    const currentEditable = findOrThrow(
+    const currentPhase = findOrThrow(
       live.phases,
       (p) => {
         const s = p.start_date ?? 0;
@@ -80,15 +80,15 @@ export class StripeSubscriptionScheduleService {
       ),
     );
 
-    const nextEditable = (live.phases || [])
+    const nextPhase = (live.phases || [])
       .filter((p) => (p.start_date ?? 0) > now)
       .sort((a, b) => (a.start_date ?? 0) - (b.start_date ?? 0))[0] as
       | Stripe.SubscriptionSchedule.Phase
       | undefined;
 
     return {
-      currentEditable,
-      nextEditable,
+      currentPhase,
+      nextPhase,
     };
   }
 
@@ -134,44 +134,38 @@ export class StripeSubscriptionScheduleService {
   async replaceEditablePhases(
     scheduleId: string,
     desired: {
-      currentPhaseSnapshot?: Stripe.SubscriptionScheduleUpdateParams.Phase;
+      currentPhaseUpdateParam?: Stripe.SubscriptionScheduleUpdateParams.Phase;
       nextPhase?: Stripe.SubscriptionScheduleUpdateParams.Phase;
     },
   ): Promise<Stripe.SubscriptionSchedule> {
     if (!this.stripe) throw new Error('Billing is disabled');
 
     const live = await this.retrieveSchedule(scheduleId);
-    const { currentEditable, nextEditable } = this.getEditablePhases(live);
+    const { currentPhase, nextPhase } = this.getCurrentAndNextPhases(live);
     const now = Math.floor(Date.now() / 1000);
 
     const phases: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [];
 
-    const currentPhaseSnapshot =
-      desired.currentPhaseSnapshot ??
-      this.snapshotFromLivePhase(currentEditable);
+    const currentPhaseUpdateParam =
+      desired.currentPhaseUpdateParam ?? this.snapshotFromLivePhase(currentPhase);
 
-    phases.push(currentPhaseSnapshot);
+    phases.push(currentPhaseUpdateParam);
 
     const hasNextKey = 'nextPhase' in desired;
     const wantsNext = hasNextKey && !!desired.nextPhase;
     const wantsDeleteNext = hasNextKey && !desired.nextPhase;
-    const preserveExistingNext = !hasNextKey && !!nextEditable;
+    const preserveExistingNext = !hasNextKey && !!nextPhase;
 
     if (wantsNext) {
       phases.push({
         ...desired.nextPhase!,
-        start_date: this.computeBaseStart(
-          currentEditable,
-          nextEditable,
-          live,
-          now,
-        ),
+        start_date: this.computeBaseStart(currentPhase, nextPhase, live, now),
         proration_behavior: 'none',
       });
     }
 
     if (!wantsNext && !wantsDeleteNext && preserveExistingNext) {
-      phases.push(this.snapshotFromLivePhase(nextEditable!));
+      phases.push(this.snapshotFromLivePhase(nextPhase!));
     }
 
     if (phases.length === 0 && wantsNext) {

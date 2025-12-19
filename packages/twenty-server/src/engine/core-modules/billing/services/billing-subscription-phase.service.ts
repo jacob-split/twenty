@@ -66,7 +66,7 @@ export class BillingSubscriptionPhaseService {
     };
   }
 
-  toSnapshot(
+  toUpdateParam(
     phase: Stripe.SubscriptionSchedule.Phase,
   ): Stripe.SubscriptionScheduleUpdateParams.Phase {
     return {
@@ -83,7 +83,7 @@ export class BillingSubscriptionPhaseService {
     } as Stripe.SubscriptionScheduleUpdateParams.Phase;
   }
 
-  async buildSnapshot(
+  async buildPhaseUpdateParam(
     base: Stripe.SubscriptionScheduleUpdateParams.Phase,
     licensedPriceId: string,
     seats: number,
@@ -119,8 +119,8 @@ export class BillingSubscriptionPhaseService {
     b: Stripe.SubscriptionScheduleUpdateParams.Phase,
   ): Promise<boolean> {
     try {
-      const sigA = await this.getPhaseSignatureFromSnapshot(a);
-      const sigB = await this.getPhaseSignatureFromSnapshot(b);
+      const sigA = await this.getPhaseSignatureFromUpdateParam(a);
+      const sigB = await this.getPhaseSignatureFromUpdateParam(b);
 
       return (
         sigA.planKey === sigB.planKey &&
@@ -132,7 +132,7 @@ export class BillingSubscriptionPhaseService {
     }
   }
 
-  private async getPhaseSignatureFromSnapshot(
+  private async getPhaseSignatureFromUpdateParam(
     phase: Stripe.SubscriptionScheduleUpdateParams.Phase,
   ): Promise<{
     planKey: BillingPlanKey;
