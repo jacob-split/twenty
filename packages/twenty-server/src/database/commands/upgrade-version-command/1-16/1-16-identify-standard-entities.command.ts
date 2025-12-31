@@ -82,6 +82,16 @@ export class IdentifyStandardEntitiesCommand extends ActiveOrSuspendedWorkspaces
           );
         }
 
+        if (
+          isDefined(fieldMetadataEntity.universalIdentifier) &&
+          fieldMetadataEntity.universalIdentifier !== universalIdentifier
+        ) {
+          // We could just replace tbh but used for logging ftm
+          throw new Error(
+            `Should not occur invalid universalIdentifier set for standard entity expected ${universalIdentifier} got ${fieldMetadataEntity.universalIdentifier}`,
+          );
+        }
+
         await fieldMetadataRepository.update(fieldMetadataEntity.id, {
           universalIdentifier:
             fieldMetadataEntity.universalIdentifier ?? universalIdentifier,
