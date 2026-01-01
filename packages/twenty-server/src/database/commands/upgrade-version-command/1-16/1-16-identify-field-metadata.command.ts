@@ -1,8 +1,8 @@
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Command } from 'nest-commander';
-import { IsNull, Repository } from 'typeorm';
 import { isDefined } from 'twenty-shared/utils';
+import { IsNull, Repository } from 'typeorm';
 import { v4 } from 'uuid';
 
 import { ActiveOrSuspendedWorkspacesMigrationCommandRunner } from 'src/database/commands/command-runners/active-or-suspended-workspaces-migration.command-runner';
@@ -66,10 +66,10 @@ const STANDARD_IDS_THAT_MUST_BECOME_CUSTOM = [
 ] as string[];
 
 @Command({
-  name: 'upgrade:1-16:identify-standard-entities',
-  description: 'Identify standard entities',
+  name: 'upgrade:1-16:identify-standard-field-metadata',
+  description: 'Identify standard field metadata',
 })
-export class IdentifyStandardEntitiesCommand extends ActiveOrSuspendedWorkspacesMigrationCommandRunner {
+export class IdentifyFieldMetadataCommand extends ActiveOrSuspendedWorkspacesMigrationCommandRunner {
   constructor(
     @InjectRepository(WorkspaceEntity)
     protected readonly workspaceRepository: Repository<WorkspaceEntity>,
@@ -88,7 +88,7 @@ export class IdentifyStandardEntitiesCommand extends ActiveOrSuspendedWorkspaces
     options,
   }: RunOnWorkspaceArgs): Promise<void> {
     this.logger.log(
-      `Running identify standard entities for workspace ${workspaceId}`,
+      `Running identify standard field metadata for workspace ${workspaceId}`,
     );
 
     const { twentyStandardFlatApplication, workspaceCustomFlatApplication } =
@@ -246,3 +246,4 @@ export class IdentifyStandardEntitiesCommand extends ActiveOrSuspendedWorkspaces
     }
   }
 }
+
