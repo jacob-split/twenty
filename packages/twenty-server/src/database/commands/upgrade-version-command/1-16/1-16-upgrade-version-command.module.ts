@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AddWorkspaceForeignKeysMigrationCommand } from 'src/database/commands/upgrade-version-command/1-16/1-16-add-workspace-foreign-keys-migration.command';
 import { BackfillUpdatedByFieldCommand } from 'src/database/commands/upgrade-version-command/1-16/1-16-backfill-updated-by-field.command';
 import { IdentifyStandardEntitiesCommand } from 'src/database/commands/upgrade-version-command/1-16/1-16-identify-standard-entities.command';
+import { MakeFieldMetadataUniversalIdentifierAndApplicationIdNotNullableMigrationCommand } from 'src/database/commands/upgrade-version-command/1-16/1-16-make-field-metadata-universal-identifier-and-application-id-not-nullable-migration.command';
 import { ApplicationModule } from 'src/engine/core-modules/application/application.module';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { DataSourceModule } from 'src/engine/metadata-modules/data-source/data-source.module';
@@ -34,11 +35,13 @@ import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache
     BackfillUpdatedByFieldCommand,
     AddWorkspaceForeignKeysMigrationCommand,
     IdentifyStandardEntitiesCommand,
+    MakeFieldMetadataUniversalIdentifierAndApplicationIdNotNullableMigrationCommand,
   ],
   exports: [
     BackfillUpdatedByFieldCommand,
     AddWorkspaceForeignKeysMigrationCommand,
     IdentifyStandardEntitiesCommand,
+    MakeFieldMetadataUniversalIdentifierAndApplicationIdNotNullableMigrationCommand,
   ],
 })
 export class V1_16_UpgradeVersionCommandModule {}
