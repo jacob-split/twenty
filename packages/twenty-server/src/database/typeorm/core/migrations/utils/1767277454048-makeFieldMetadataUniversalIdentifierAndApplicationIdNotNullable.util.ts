@@ -21,4 +21,3 @@ export const makeFieldMetadataUniversalIdentifierAndApplicationIdNotNullableQuer
       `ALTER TABLE "core"."fieldMetadata" ADD CONSTRAINT "FK_05453a954e458e3d91f2ff5043f" FOREIGN KEY ("applicationId") REFERENCES "core"."application"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
     );
   };
-

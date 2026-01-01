@@ -20,4 +20,3 @@ export abstract class SyncableEntityRequired extends WorkspaceRelatedEntity {
   @JoinColumn({ name: 'applicationId' })
   application: Relation<ApplicationEntity>;
 }
-

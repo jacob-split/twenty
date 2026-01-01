@@ -1,4 +1,7 @@
-import { FieldMetadataType, NonNullableRequired } from 'twenty-shared/types';
+import {
+  FieldMetadataType,
+  type NonNullableRequired,
+} from 'twenty-shared/types';
 import { v4 } from 'uuid';
 
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';

@@ -5,7 +5,8 @@ import { makeFieldMetadataUniversalIdentifierAndApplicationIdNotNullableQueries 
 export class MakeFieldMetadataUniversalIdentifierAndApplicationIdNotNullable1767277454048
   implements MigrationInterface
 {
-  name = 'MakeFieldMetadataUniversalIdentifierAndApplicationIdNotNullable1767277454048';
+  name =
+    'MakeFieldMetadataUniversalIdentifierAndApplicationIdNotNullable1767277454048';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const savepointName =
