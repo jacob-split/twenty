@@ -23,6 +23,7 @@ import { MigratePageLayoutWidgetConfigurationCommand } from 'src/database/comman
 import { AddWorkspaceForeignKeysMigrationCommand } from 'src/database/commands/upgrade-version-command/1-16/1-16-add-workspace-foreign-keys-migration.command';
 import { BackfillUpdatedByFieldCommand } from 'src/database/commands/upgrade-version-command/1-16/1-16-backfill-updated-by-field.command';
 import { IdentifyStandardEntitiesCommand } from 'src/database/commands/upgrade-version-command/1-16/1-16-identify-standard-entities.command';
+import { MakeFieldMetadataUniversalIdentifierAndApplicationIdNotNullableMigrationCommand } from 'src/database/commands/upgrade-version-command/1-16/1-16-make-field-metadata-universal-identifier-and-application-id-not-nullable-migration.command';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { DataSourceService } from 'src/engine/metadata-modules/data-source/data-source.service';
@@ -63,6 +64,7 @@ export class UpgradeCommand extends UpgradeCommandRunner {
     protected readonly backfillUpdatedByFieldCommand: BackfillUpdatedByFieldCommand,
     protected readonly addWorkspaceForeignKeysMigrationCommand: AddWorkspaceForeignKeysMigrationCommand,
     protected readonly identifyStandardEntitiesCommand: IdentifyStandardEntitiesCommand,
+    protected readonly makeFieldMetadataUniversalIdentifierAndApplicationIdNotNullableMigrationCommand: MakeFieldMetadataUniversalIdentifierAndApplicationIdNotNullableMigrationCommand,
   ) {
     super(
       workspaceRepository,
@@ -98,6 +100,7 @@ export class UpgradeCommand extends UpgradeCommandRunner {
       this.backfillUpdatedByFieldCommand,
       this.addWorkspaceForeignKeysMigrationCommand,
       this.identifyStandardEntitiesCommand,
+      this.makeFieldMetadataUniversalIdentifierAndApplicationIdNotNullableMigrationCommand,
     ];
 
     this.allCommands = {
