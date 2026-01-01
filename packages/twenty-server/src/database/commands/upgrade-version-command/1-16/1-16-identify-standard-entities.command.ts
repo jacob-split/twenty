@@ -2,6 +2,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { Command } from 'nest-commander';
 import { IsNull, Repository } from 'typeorm';
+import { isDefined } from 'twenty-shared/utils';
+import { v4 } from 'uuid';
 
 import { ActiveOrSuspendedWorkspacesMigrationCommandRunner } from 'src/database/commands/command-runners/active-or-suspended-workspaces-migration.command-runner';
 import { RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspaces-migration.command-runner';
@@ -22,8 +24,6 @@ import {
   PERSON_STANDARD_FIELD_IDS,
   WORKSPACE_MEMBER_STANDARD_FIELD_IDS,
 } from 'src/engine/workspace-manager/workspace-sync-metadata/constants/standard-field-ids';
-import { isDefined } from 'twenty-shared/utils';
-import { v4 } from 'uuid';
 
 type CustomFieldMetadata = {
   fieldMetadataEntity: FieldMetadataEntity;
@@ -64,6 +64,7 @@ const STANDARD_IDS_THAT_MUST_BECOME_CUSTOM = [
   ...Object.values(BASE_OBJECT_STANDARD_FIELD_IDS),
   ...DEPRECATED_STANDARD_FIELD_IDS,
 ] as string[];
+
 @Command({
   name: 'upgrade:1-16:identify-standard-entities',
   description: 'Identify standard entities',
@@ -174,6 +175,7 @@ export class IdentifyStandardEntitiesCommand extends ActiveOrSuspendedWorkspaces
 
     const totalUpdates =
       customFieldMetadataEntities.length + standardFieldMetadataEntities.length;
+
     this.logger.log(
       `Successfully validated ${totalUpdates}/${allFieldMetadataEntities.length} field metadata update(s) for workspace ${workspaceId} (${customFieldMetadataEntities.length} custom, ${standardFieldMetadataEntities.length} standard)`,
     );
