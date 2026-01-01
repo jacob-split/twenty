@@ -1,4 +1,4 @@
-import { FieldMetadataType } from 'twenty-shared/types';
+import { FieldMetadataType, NonNullableRequired } from 'twenty-shared/types';
 import { v4 } from 'uuid';
 
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
@@ -11,7 +11,9 @@ import { getTsVectorColumnExpressionFromFields } from 'src/engine/workspace-mana
 
 type BuildDefaultFlatFieldMetadataForCustomObjectArgs = {
   workspaceId: string;
-  flatObjectMetadata: Pick<FlatObjectMetadata, 'id' | 'applicationId'>;
+  flatObjectMetadata: NonNullableRequired<
+    Pick<FlatObjectMetadata, 'id' | 'applicationId'>
+  >;
 };
 
 export type DefaultFlatFieldForCustomObjectMaps = ReturnType<
@@ -57,7 +59,7 @@ export const buildDefaultFlatFieldMetadatasForCustomObject = ({
     relationTargetObjectMetadataId: null,
     settings: null,
     morphId: null,
-    applicationId: applicationId ?? null,
+    applicationId,
   };
 
   const nameFieldId = v4();
@@ -94,7 +96,7 @@ export const buildDefaultFlatFieldMetadatasForCustomObject = ({
     relationTargetObjectMetadataId: null,
     settings: null,
     morphId: null,
-    applicationId: applicationId ?? null,
+    applicationId,
   };
 
   const createdAtFieldId = v4();
@@ -131,7 +133,7 @@ export const buildDefaultFlatFieldMetadatasForCustomObject = ({
     relationTargetObjectMetadataId: null,
     settings: null,
     morphId: null,
-    applicationId: applicationId ?? null,
+    applicationId,
   };
 
   const updatedAtFieldId = v4();
@@ -168,7 +170,7 @@ export const buildDefaultFlatFieldMetadatasForCustomObject = ({
     relationTargetObjectMetadataId: null,
     settings: null,
     morphId: null,
-    applicationId: applicationId ?? null,
+    applicationId,
   };
 
   const deletedAtFieldId = v4();
@@ -205,7 +207,7 @@ export const buildDefaultFlatFieldMetadatasForCustomObject = ({
     relationTargetObjectMetadataId: null,
     settings: null,
     morphId: null,
-    applicationId: applicationId ?? null,
+    applicationId,
   };
 
   const createdByFieldId = v4();
@@ -241,7 +243,7 @@ export const buildDefaultFlatFieldMetadatasForCustomObject = ({
     relationTargetObjectMetadataId: null,
     settings: null,
     morphId: null,
-    applicationId: applicationId ?? null,
+    applicationId,
   };
 
   const updatedByFieldId = v4();
@@ -277,7 +279,7 @@ export const buildDefaultFlatFieldMetadatasForCustomObject = ({
     relationTargetObjectMetadataId: null,
     settings: null,
     morphId: null,
-    applicationId: applicationId ?? null,
+    applicationId,
   };
 
   const positionFieldId = v4();
@@ -314,7 +316,7 @@ export const buildDefaultFlatFieldMetadatasForCustomObject = ({
     relationTargetObjectMetadataId: null,
     settings: null,
     morphId: null,
-    applicationId: applicationId ?? null,
+    applicationId,
   };
 
   const searchVectorFieldId = v4();
@@ -354,7 +356,7 @@ export const buildDefaultFlatFieldMetadatasForCustomObject = ({
       generatedType: 'STORED',
     },
     morphId: null,
-    applicationId: applicationId ?? null,
+    applicationId,
   };
 
   return {
