@@ -35,7 +35,14 @@ type StandardFieldMetadata = {
   universalIdentifier: string;
 };
 
-type AllExceptions = 'unknown_standard_id' | 'existing_universal_id_missmatch';
+type AllWarnings = 'unknown_standard_id';
+
+type FieldMetadataWarning = {
+  fieldMetadataEntity: FieldMetadataEntity;
+  warning: AllWarnings;
+};
+
+type AllExceptions = 'existing_universal_id_mismatch';
 
 type FieldMetadataException = {
   fieldMetadataEntity: FieldMetadataEntity;
@@ -109,6 +116,7 @@ export class IdentifyStandardEntitiesCommand extends ActiveOrSuspendedWorkspaces
 
     const customFieldMetadataEntities: CustomFieldMetadata[] = [];
     const standardFieldMetadataEntities: StandardFieldMetadata[] = [];
+    const warnings: FieldMetadataWarning[] = [];
     const exceptions: FieldMetadataException[] = [];
 
     for (const fieldMetadataEntity of allFieldMetadataEntities) {
@@ -135,9 +143,13 @@ export class IdentifyStandardEntitiesCommand extends ActiveOrSuspendedWorkspaces
         ]?.universalIdentifier;
 
       if (!isDefined(universalIdentifier)) {
-        exceptions.push({
+        warnings.push({
           fieldMetadataEntity,
-          exception: 'unknown_standard_id',
+          warning: 'unknown_standard_id',
+        });
+        customFieldMetadataEntities.push({
+          fieldMetadataEntity,
+          fromStandard: true,
         });
         continue;
       }
@@ -148,7 +160,7 @@ export class IdentifyStandardEntitiesCommand extends ActiveOrSuspendedWorkspaces
       ) {
         exceptions.push({
           fieldMetadataEntity,
-          exception: 'existing_universal_id_missmatch',
+          exception: 'existing_universal_id_mismatch',
         });
         continue;
       }
@@ -161,11 +173,22 @@ export class IdentifyStandardEntitiesCommand extends ActiveOrSuspendedWorkspaces
     }
 
     const totalUpdates =
-      customFieldMetadataEntities.length +
-      standardFieldMetadataEntities.length;
+      customFieldMetadataEntities.length + standardFieldMetadataEntities.length;
     this.logger.log(
       `Successfully validated ${totalUpdates}/${allFieldMetadataEntities.length} field metadata update(s) for workspace ${workspaceId} (${customFieldMetadataEntities.length} custom, ${standardFieldMetadataEntities.length} standard)`,
     );
+
+    if (warnings.length > 0) {
+      this.logger.warn(
+        `Found ${warnings.length} warning(s) while processing field metadata for workspace ${workspaceId}. These fields will become custom.`,
+      );
+
+      for (const { fieldMetadataEntity, warning } of warnings) {
+        this.logger.warn(
+          `Warning for field "${fieldMetadataEntity.name}" on object "${fieldMetadataEntity.object.nameSingular}" (id=${fieldMetadataEntity.id} standardId=${fieldMetadataEntity.standardId}): ${warning}`,
+        );
+      }
+    }
 
     if (exceptions.length > 0) {
       this.logger.error(
