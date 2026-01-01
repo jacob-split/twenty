@@ -137,10 +137,14 @@ export class IdentifyFieldMetadataCommand extends ActiveOrSuspendedWorkspacesMig
         continue;
       }
 
-      const universalIdentifier: string | undefined =
-        // @ts-expect-error ignore
-        STANDARD_OBJECTS[fieldMetadataEntity.object.nameSingular]?.fields[
-          fieldMetadataEntity.name
+      const objectConfig =
+        STANDARD_OBJECTS[
+          fieldMetadataEntity.object
+            .nameSingular as keyof typeof STANDARD_OBJECTS
+        ];
+      const universalIdentifier =
+        objectConfig?.fields[
+          fieldMetadataEntity.name as keyof typeof objectConfig.fields
         ]?.universalIdentifier;
 
       if (!isDefined(universalIdentifier)) {
