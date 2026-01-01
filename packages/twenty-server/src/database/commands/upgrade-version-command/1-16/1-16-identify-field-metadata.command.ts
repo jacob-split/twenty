@@ -66,7 +66,7 @@ const STANDARD_IDS_THAT_MUST_BECOME_CUSTOM = [
 ] as string[];
 
 @Command({
-  name: 'upgrade:1-16:identify-standard-field-metadata',
+  name: 'upgrade:1-16:identify-field-metadata',
   description: 'Identify standard field metadata',
 })
 export class IdentifyFieldMetadataCommand extends ActiveOrSuspendedWorkspacesMigrationCommandRunner {
@@ -246,4 +246,3 @@ export class IdentifyFieldMetadataCommand extends ActiveOrSuspendedWorkspacesMig
     }
   }
 }
-
