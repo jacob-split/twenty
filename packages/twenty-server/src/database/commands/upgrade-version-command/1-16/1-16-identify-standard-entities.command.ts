@@ -14,8 +14,13 @@ import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspac
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { STANDARD_OBJECTS } from 'src/engine/workspace-manager/twenty-standard-application/constants/standard-object.constant';
 import {
+  ATTACHMENT_STANDARD_FIELD_IDS,
   BASE_OBJECT_STANDARD_FIELD_IDS,
+  COMPANY_STANDARD_FIELD_IDS,
   CUSTOM_OBJECT_STANDARD_FIELD_IDS,
+  OPPORTUNITY_STANDARD_FIELD_IDS,
+  PERSON_STANDARD_FIELD_IDS,
+  WORKSPACE_MEMBER_STANDARD_FIELD_IDS,
 } from 'src/engine/workspace-manager/workspace-sync-metadata/constants/standard-field-ids';
 import { isDefined } from 'twenty-shared/utils';
 import { v4 } from 'uuid';
@@ -37,9 +42,20 @@ type FieldMetadataException = {
   exception: AllExceptions;
 };
 
+const DEPRECATED_STANDARD_FIELD_IDS = [
+  COMPANY_STANDARD_FIELD_IDS.address_deprecated,
+  OPPORTUNITY_STANDARD_FIELD_IDS.probabilityDeprecated,
+  PERSON_STANDARD_FIELD_IDS.phone,
+  ATTACHMENT_STANDARD_FIELD_IDS.type,
+  ATTACHMENT_STANDARD_FIELD_IDS.author,
+  // Inverse of deprecated author relation on attachment
+  WORKSPACE_MEMBER_STANDARD_FIELD_IDS.authoredAttachments,
+];
+
 const STANDARD_IDS_THAT_MUST_BECOME_CUSTOM = [
   ...Object.values(CUSTOM_OBJECT_STANDARD_FIELD_IDS),
   ...Object.values(BASE_OBJECT_STANDARD_FIELD_IDS),
+  ...DEPRECATED_STANDARD_FIELD_IDS,
 ] as string[];
 @Command({
   name: 'upgrade:1-16:identify-standard-entities',
