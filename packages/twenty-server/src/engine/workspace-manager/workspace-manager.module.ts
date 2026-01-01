@@ -41,7 +41,6 @@ import { WorkspaceManagerService } from './workspace-manager.service';
     WorkspaceManyOrAllFlatEntityMapsCacheModule,
     TypeOrmModule.forFeature([UserWorkspaceEntity, WorkspaceEntity]),
     RoleModule,
-    ApplicationModule,
     UserRoleModule,
     ApplicationModule,
     TypeOrmModule.forFeature([
