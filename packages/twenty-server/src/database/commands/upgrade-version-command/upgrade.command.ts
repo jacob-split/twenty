@@ -100,7 +100,8 @@ export class UpgradeCommand extends UpgradeCommandRunner {
       this.backfillUpdatedByFieldCommand,
       this.addWorkspaceForeignKeysMigrationCommand,
       this.identifyStandardEntitiesCommand,
-      this.makeFieldMetadataUniversalIdentifierAndApplicationIdNotNullableMigrationCommand,
+      this
+        .makeFieldMetadataUniversalIdentifierAndApplicationIdNotNullableMigrationCommand,
     ];
 
     this.allCommands = {
