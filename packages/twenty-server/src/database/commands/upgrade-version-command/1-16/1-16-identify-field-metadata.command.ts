@@ -11,6 +11,8 @@ import { ApplicationService } from 'src/engine/core-modules/application/applicat
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { DataSourceService } from 'src/engine/metadata-modules/data-source/data-source.service';
 import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
+import { getMetadataFlatEntityMapsKey } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-flat-entity-maps-key.util';
+import { getMetadataRelatedMetadataNames } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-related-metadata-names.util';
 import { isStandardMetadata } from 'src/engine/metadata-modules/utils/is-standard-metadata.util';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
@@ -234,11 +236,18 @@ export class IdentifyFieldMetadataCommand extends ActiveOrSuspendedWorkspacesMig
         ...standardUpdates,
       ]);
 
-      await this.workspaceCacheService.invalidateAndRecompute(workspaceId, [
-        'flatFieldMetadataMaps',
-        'flatObjectMetadataMaps',
-        'flatViewFieldMaps',
-      ]);
+      const relatedMetadataNames =
+        getMetadataRelatedMetadataNames('fieldMetadata');
+      const cacheKeysToInvalidate = relatedMetadataNames.map(
+        getMetadataFlatEntityMapsKey,
+      );
+      this.logger.log(
+        `Invalidating caches: ${cacheKeysToInvalidate.join(' ')}`,
+      );
+      await this.workspaceCacheService.invalidateAndRecompute(
+        workspaceId,
+        cacheKeysToInvalidate,
+      );
 
       this.logger.log(
         `Applied ${totalUpdates} field metadata update(s) for workspace ${workspaceId}`,
