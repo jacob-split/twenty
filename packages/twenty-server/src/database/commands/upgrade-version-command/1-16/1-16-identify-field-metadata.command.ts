@@ -241,6 +241,7 @@ export class IdentifyFieldMetadataCommand extends ActiveOrSuspendedWorkspacesMig
       const cacheKeysToInvalidate = relatedMetadataNames.map(
         getMetadataFlatEntityMapsKey,
       );
+
       this.logger.log(
         `Invalidating caches: ${cacheKeysToInvalidate.join(' ')}`,
       );
