@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 import { anthropic } from '@ai-sdk/anthropic';
+import { createAzure } from '@ai-sdk/azure';
+import { createVertex } from '@ai-sdk/google-vertex';
 import { createOpenAI, openai } from '@ai-sdk/openai';
 import { xai } from '@ai-sdk/xai';
 import { type LanguageModel } from 'ai';
@@ -70,6 +72,34 @@ export class AiModelRegistryService {
         openaiCompatibleModelNames,
       );
     }
+
+    // Register Azure OpenAI models
+    const azureResourceName = this.twentyConfigService.get(
+      'AZURE_OPENAI_RESOURCE_NAME',
+    );
+    const azureApiKey = this.twentyConfigService.get('AZURE_OPENAI_API_KEY');
+    const azureDeploymentNames = this.twentyConfigService.get(
+      'AZURE_OPENAI_DEPLOYMENT_NAMES',
+    );
+
+    if (azureResourceName && azureApiKey && azureDeploymentNames) {
+      this.registerAzureModels(azureResourceName, azureApiKey, azureDeploymentNames);
+    }
+
+    // Register Vertex AI Anthropic models
+    const vertexProjectId = this.twentyConfigService.get('VERTEX_AI_PROJECT_ID');
+    const vertexLocation = this.twentyConfigService.get('VERTEX_AI_LOCATION');
+    const vertexAnthropicModels = this.twentyConfigService.get(
+      'VERTEX_AI_ANTHROPIC_MODELS',
+    );
+
+    if (vertexProjectId && vertexLocation && vertexAnthropicModels) {
+      this.registerVertexAIAnthropicModels(
+        vertexProjectId,
+        vertexLocation,
+        vertexAnthropicModels,
+      );
+    }
   }
 
   private registerOpenAIModels(): void {
@@ -125,6 +155,55 @@ export class AiModelRegistryService {
         modelId,
         provider: ModelProvider.OPENAI_COMPATIBLE,
         model: provider(modelId),
+      });
+    });
+  }
+
+  private registerAzureModels(
+    resourceName: string,
+    apiKey: string,
+    deploymentNamesString: string,
+  ): void {
+    const azure = createAzure({
+      resourceName,
+      apiKey,
+    });
+
+    const deploymentNames = deploymentNamesString
+      .split(',')
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+
+    deploymentNames.forEach((deploymentName) => {
+      this.modelRegistry.set(deploymentName, {
+        modelId: deploymentName,
+        provider: ModelProvider.AZURE,
+        model: azure(deploymentName),
+      });
+    });
+  }
+
+  private registerVertexAIAnthropicModels(
+    projectId: string,
+    location: string,
+    modelNamesString: string,
+  ): void {
+    const vertex = createVertex({
+      project: projectId,
+      location,
+    });
+
+    const modelNames = modelNamesString
+      .split(',')
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+
+    modelNames.forEach((modelName) => {
+      // Vertex AI Anthropic models use format like "claude-sonnet-4-5@20250929"
+      this.modelRegistry.set(modelName, {
+        modelId: modelName,
+        provider: ModelProvider.VERTEX_AI_ANTHROPIC,
+        model: vertex(modelName),
       });
     });
   }
@@ -279,6 +358,7 @@ export class AiModelRegistryService {
 
   async validateApiKey(provider: ModelProvider): Promise<void> {
     let apiKey: string | undefined;
+    let configName: string = provider.toUpperCase();
 
     switch (provider) {
       case ModelProvider.OPENAI:
@@ -293,13 +373,22 @@ export class AiModelRegistryService {
       case ModelProvider.OPENAI_COMPATIBLE:
         apiKey = this.twentyConfigService.get('OPENAI_COMPATIBLE_API_KEY');
         break;
+      case ModelProvider.AZURE:
+        apiKey = this.twentyConfigService.get('AZURE_OPENAI_API_KEY');
+        configName = 'AZURE_OPENAI';
+        break;
+      case ModelProvider.VERTEX_AI_ANTHROPIC:
+        // Vertex AI uses Application Default Credentials, check project ID instead
+        apiKey = this.twentyConfigService.get('VERTEX_AI_PROJECT_ID');
+        configName = 'VERTEX_AI';
+        break;
       default:
         return;
     }
 
     if (!apiKey) {
       throw new AgentException(
-        `${provider.toUpperCase()} API key not configured. Please set the appropriate environment variable.`,
+        `${configName} API key not configured. Please set the appropriate environment variable.`,
         AgentExceptionCode.API_KEY_NOT_CONFIGURED,
       );
     }

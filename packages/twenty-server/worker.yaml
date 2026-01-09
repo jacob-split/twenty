@@ -1,0 +1,38 @@
+runtime: nodejs22
+instance_class: F2
+service: worker
+
+entrypoint: yarn worker:prod
+
+env_variables:
+  NODE_ENV: "production"
+
+  # Database - Cloud SQL with Unix Socket (must match server)
+  PG_DATABASE_URL: "postgres://postgres:twentyai2025@/default?host=/cloudsql/split-12-08-25:us-central1:twenty-postgres"
+
+  # Redis
+  REDIS_URL: "redis://10.199.215.115:6379"
+
+  # Storage
+  STORAGE_TYPE: "s3"
+  STORAGE_S3_NAME: "splitmcp-storage-prod"
+  STORAGE_S3_REGION: "auto"
+  STORAGE_S3_ENDPOINT: "https://storage.googleapis.com"
+  STORAGE_S3_ACCESS_KEY_ID: "GOOG1E66B7LEVTW2SGR45A7FTDYEWEJ22KFJLO7I2RUKR7IGHSBCHLIM2BGBD"
+  STORAGE_S3_SECRET_ACCESS_KEY: "YOUR_S3_SECRET_KEY"
+
+  # App Secrets
+  APP_SECRET: "YOUR_APP_SECRET"
+
+  # AI Configuration (must match server)
+  OPENAI_API_KEY: "YOUR_OPENAI_API_KEY"
+  DEFAULT_AI_SPEED_MODEL_ID: "gpt-4.1-mini"
+  DEFAULT_AI_PERFORMANCE_MODEL_ID: "gpt-4.1"
+  SERVERLESS_DRIVER: "local"
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 5
+
+vpc_access_connector:
+  name: projects/splitmcp/locations/us-central1/connectors/twenty-connector

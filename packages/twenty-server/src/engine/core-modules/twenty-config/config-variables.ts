@@ -1233,6 +1233,55 @@ export class ConfigVariables {
   XAI_API_KEY: string;
 
   @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.LLM,
+    description: 'Azure OpenAI resource name (e.g., "my-resource" from my-resource.openai.azure.com)',
+    type: ConfigVariableType.STRING,
+  })
+  @IsOptional()
+  AZURE_OPENAI_RESOURCE_NAME: string;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.LLM,
+    isSensitive: true,
+    description: 'API key for Azure OpenAI integration',
+    type: ConfigVariableType.STRING,
+  })
+  @IsOptional()
+  AZURE_OPENAI_API_KEY: string;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.LLM,
+    description: 'Comma-separated Azure OpenAI deployment names to register as models',
+    type: ConfigVariableType.STRING,
+  })
+  @IsOptional()
+  AZURE_OPENAI_DEPLOYMENT_NAMES: string;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.LLM,
+    description: 'Google Cloud project ID for Vertex AI',
+    type: ConfigVariableType.STRING,
+  })
+  @IsOptional()
+  VERTEX_AI_PROJECT_ID: string;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.LLM,
+    description: 'Google Cloud region for Vertex AI (e.g., "us-central1" or "global")',
+    type: ConfigVariableType.STRING,
+  })
+  @IsOptional()
+  VERTEX_AI_LOCATION: string;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.LLM,
+    description: 'Comma-separated Vertex AI Anthropic model names (e.g., "claude-sonnet-4-5@20250929")',
+    type: ConfigVariableType.STRING,
+  })
+  @IsOptional()
+  VERTEX_AI_ANTHROPIC_MODELS: string;
+
+  @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.SERVER_CONFIG,
     description: 'Enable or disable multi-workspace support',
     type: ConfigVariableType.BOOLEAN,

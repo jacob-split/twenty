@@ -1,0 +1,52 @@
+runtime: nodejs22
+instance_class: F4
+service: default
+
+env_variables:
+  NODE_ENV: "production"
+
+  # Database - Cloud SQL with Unix Socket
+  PG_DATABASE_URL: "postgres://postgres:YOUR_PASSWORD@/default?host=/cloudsql/split-12-08-25:us-central1:twenty-postgres"
+
+  # Redis - Memorystore
+  REDIS_URL: "redis://10.199.215.115:6379"
+
+  # Storage - GCS S3 Interoperability
+  STORAGE_TYPE: "s3"
+  STORAGE_S3_NAME: "splitmcp-storage-prod"
+  STORAGE_S3_REGION: "auto"
+  STORAGE_S3_ENDPOINT: "https://storage.googleapis.com"
+  STORAGE_S3_ACCESS_KEY_ID: "YOUR_GCS_ACCESS_KEY"
+  STORAGE_S3_SECRET_ACCESS_KEY: "YOUR_GCS_SECRET_KEY"
+
+  # App Secrets
+  APP_SECRET: "YOUR_APP_SECRET"
+
+  # URLs
+  SERVER_URL: "https://splitmcp.appspot.com"
+  FRONTEND_URL: "https://frontend-dot-splitmcp.appspot.com"
+
+  # =============================================================================
+  # AI CONFIGURATION
+  # =============================================================================
+
+  # OpenAI API Key (GPT-4.1, o3, o4-mini models)
+  OPENAI_API_KEY: "YOUR_OPENAI_API_KEY"
+
+  # Default AI Models (comma-separated priority list)
+  DEFAULT_AI_SPEED_MODEL_ID: "gpt-4.1-mini"
+  DEFAULT_AI_PERFORMANCE_MODEL_ID: "gpt-4.1"
+
+  # HTTP Tool Safety (blocks private IPs)
+  HTTP_TOOL_SAFE_MODE_ENABLED: "true"
+
+  # Serverless Functions
+  SERVERLESS_DRIVER: "local"
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 10
+  target_cpu_utilization: 0.65
+
+vpc_access_connector:
+  name: projects/splitmcp/locations/us-central1/connectors/twenty-connector

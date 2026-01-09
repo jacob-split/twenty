@@ -1,0 +1,14 @@
+runtime: nodejs22
+service: website
+
+env_variables:
+  NODE_ENV: "production"
+
+handlers:
+  - url: /.*
+    script: auto
+    secure: always
+
+automatic_scaling:
+  min_instances: 0
+  max_instances: 2

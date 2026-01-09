@@ -1,0 +1,21 @@
+runtime: nodejs22
+service: frontend
+
+# We use the static files handler for performance
+handlers:
+  # Serve static files from the build output
+  - url: /assets
+    static_dir: dist/assets
+
+  # Serve favicon and manifest
+  - url: /(.*\.(json|ico|png))$
+    static_files: dist/\1
+    upload: dist/.*\.(json|ico|png)$
+
+  # Catch-all to serve index.html for client-side routing (SPA)
+  - url: /.*
+    static_files: dist/index.html
+    upload: dist/index.html
+
+# Ensure the dist folder is generated before deploying
+# The build step happens locally or in CI before 'gcloud app deploy'

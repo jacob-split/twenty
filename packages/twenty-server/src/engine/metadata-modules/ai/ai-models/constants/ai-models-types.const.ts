@@ -4,6 +4,8 @@ export enum ModelProvider {
   ANTHROPIC = 'anthropic',
   OPENAI_COMPATIBLE = 'open_ai_compatible',
   XAI = 'xai',
+  AZURE = 'azure',
+  VERTEX_AI_ANTHROPIC = 'vertex_ai_anthropic',
 }
 
 export const DEFAULT_FAST_MODEL = 'default-fast-model' as const;
